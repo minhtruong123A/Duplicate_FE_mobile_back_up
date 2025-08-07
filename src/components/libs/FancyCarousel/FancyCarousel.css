@@ -1,0 +1,101 @@
+.fancy-slide {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    /* allow children to overflow */
+    overflow: visible;
+}
+
+.fancy-flow {
+    /* Force visible overflow */
+    overflow: visible !important;
+}
+
+.carousel-hover-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    /* change this to allow char-img to escape */
+    overflow: visible;
+    z-index: 1;
+    transition: all 0.3 ease;
+    will-change: transform;
+}
+
+.carousel-mainbg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 20px;
+}
+
+/* Position the character image outside and shrink it */
+.char-wrapper {
+    position: absolute;
+    top: 0;
+    left: 30%;
+    /* transform: translateX(-50%); */
+    z-index: 3;
+    overflow: visible;
+}
+
+.char-img {
+    width: auto !important;
+    height: 80vh !important;
+    transform: translateY(0%);
+    transition: transform 0.1s ease-in-out;
+    border-radius: 0;
+    transform-style: preserve-3d;
+    will-change: opacity, transform;
+}
+
+/* -----------------==================== RESPONSIVE STYLES =======================------------------------*/
+/* -----------------======================= QUERY WOKE =======================------------------------*/
+/* -----------------==================== RESPONSIVE STYLES =======================------------------------*/
+
+@media (max-width: 600px) {
+    .swiper {
+        height: 400px;
+    }
+}
+
+/* For screen width ≤ 990px */
+@media (max-width: 990px) {
+    .char-wrapper {
+        right: -50%;
+    }
+
+    .char-img {
+        height: 60vh !important;
+        transform: translateY(0%);
+    }
+  
+}
+
+/* For screen width ≤ 765px */
+@media (max-width: 765px) {
+    .char-wrapper {
+        left: 20%;
+    }
+
+    .char-img {
+        height: 60vh !important;
+        transform: translateY(0%);
+    }
+  
+}
+
+
+/* For screen width ≤ 480px */
+@media (max-width: 480px) {
+    .char-wrapper {
+        left: 10%;
+    }
+
+    .char-img {
+        height: 50vh !important;
+        transform: translateY(0%);
+    }
+  
+}
