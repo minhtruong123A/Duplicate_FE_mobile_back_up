@@ -54,3 +54,9 @@ export type BoxDetailScreenProps = NativeStackScreenProps<ShopStackParamList, 'B
 
 // THÊM DÒNG NÀY VÀO CUỐI FILE
 export type RootTabNavigationProp = BottomTabNavigationProp<RootTabParamList>;
+
+// (E) Root Stack ngoài cùng chứa Tab + Chat
+export type RootStackParamList = {
+    MainTabs: NavigatorScreenParams<RootTabParamList>; // Tab chứa Shop, Cart, v.v.
+    Chat: undefined; // Màn hình Chat riêng, không nằm trong Tab
+};

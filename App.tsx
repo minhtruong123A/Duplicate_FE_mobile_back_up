@@ -43,7 +43,7 @@ import Notification from './src/screens/Notification';
 import * as SplashScreen from 'expo-splash-screen';
 
 //import file types.ts
-import { RootTabParamList, ShopStackParamList, CartStackParamList, SettingsStackParamList } from './src/types/types';
+import { RootTabParamList, ShopStackParamList, CartStackParamList, SettingsStackParamList, RootStackParamList } from './src/types/types';
 
 // const Stack = createNativeStackNavigator();
 // const Tab = createBottomTabNavigator();
@@ -51,6 +51,7 @@ const Stack = createNativeStackNavigator<ShopStackParamList>();
 const CartNavStack = createNativeStackNavigator<CartStackParamList>();
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const SettingsNavStack = createNativeStackNavigator<SettingsStackParamList>();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
 // Stack Navigator for Shop (holds top Tabs) > BoxShop/ProductShop > Detail page 
 // function BoxShopStack() {
 //   return (
@@ -144,6 +145,47 @@ function SettingsStack() {
   );
 }
 
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: '#000000',
+        tabBarInactiveTintColor: 'gray',
+        tabBarStyle: {
+          height: 90,
+          backgroundColor: '#fff',
+          borderTopWidth: 0.5,
+          borderTopColor: '#ccc',
+          paddingTop: 5,
+          paddingBottom: 30,
+        },
+        tabBarIcon: ({ focused }) => {
+          switch (route.name) {
+            case 'Shop':
+              return focused ? <ShopIcon width={24} height={24} /> : <ShopIconOutline width={24} height={24} />;
+            case 'Auction':
+              return focused ? <AuctionIcon width={24} height={24} /> : <AuctionIconOutline width={24} height={24} />;
+            case 'Cart':
+              return focused ? <CartIcon width={24} height={24} /> : <CartIconOutline width={24} height={24} />;
+            case 'Notification':
+              return focused ? <NotificationIcon width={24} height={24} /> : <NotificationIconOutline width={24} height={24} />;
+            case 'Settings':
+              return focused ? <SettingIcon width={24} height={24} /> : <SettingIconOutline width={24} height={24} />;
+            default:
+              return null;
+          }
+        },
+      })}
+    >
+      <Tab.Screen name="Shop" component={ShopStack} options={{ title: 'Home' }} />
+      <Tab.Screen name="Auction" component={Auction} options={{ title: 'Auction' }} />
+      <Tab.Screen name="Cart" component={CartStack} options={{ title: 'Cart' }} />
+      <Tab.Screen name="Settings" component={SettingsStack} options={{ title: 'Settings' }} />
+    </Tab.Navigator>
+  );
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -153,7 +195,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
-
 //
 
 export default function App() {
@@ -187,79 +228,10 @@ export default function App() {
   return (
     <NavigationContainer>
       <StatusBar style="auto" backgroundColor="transparent" translucent={true} />
-      {/* <Tab.Navigator
-          initialRouteName='Home Page'
-          screenOptions={{
-            tabBarActiveTintColor: '#F4B400',  // Custom active color
-            tabBarInactiveTintColor: 'gray', // Custom inactive color
-          }}
-        >
-          <Tab.Screen
-            name="Home Page"
-            component={HomeStack}
-            options={{
-              headerShown: false,
-              tabBarIcon: ({ color }) => (
-                <Entypo name="home" size={24} color={color} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Saved Toys"
-            component={SaveStack}
-            options={{
-              headerShown: false,
-              tabBarIcon: ({ color }) => (
-                <FontAwesome name="bookmark" size={24} color={color} />
-              ),
-            }} />
-        </Tab.Navigator> */}
-
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarShowLabel: true,
-          tabBarActiveTintColor: '#007AFF',
-          tabBarInactiveTintColor: 'gray',
-          tabBarStyle: {
-            height: 90,
-            backgroundColor: '#fff',
-            borderTopWidth: 0.5,
-            borderTopColor: '#ccc',
-            paddingTop: 5,
-            paddingBottom: 30,
-          },
-          tabBarIcon: ({ focused }) => {
-            switch (route.name) {
-              case 'Shop':
-                return focused ? <ShopIcon width={24} height={24} /> : <ShopIconOutline width={24} height={24} />;
-              case 'Auction':
-                return focused ? <AuctionIcon width={24} height={24} /> : <AuctionIconOutline width={24} height={24} />;
-              case 'Cart':
-                return focused ? <CartIcon width={24} height={24} /> : <CartIconOutline width={24} height={24} />;
-              case 'Notification':
-                return focused ? <NotificationIcon width={24} height={24} /> : <NotificationIconOutline width={24} height={24} />;
-              case 'Settings':
-                return focused ? <SettingIcon width={24} height={24} /> : <SettingIconOutline width={24} height={24} />;
-              case 'Chat':
-                return focused ? <ChatIcon width={24} height={24} /> : <ChatIconOutline width={24} height={24} />;
-              default:
-                return null;
-            }
-          },
-        })}
-      >
-        <Tab.Screen name="Shop" component={ShopStack} options={{ title: 'Home' }} />
-        <Tab.Screen name="Auction" component={Auction} options={{ title: 'Auction' }} />
-        <Tab.Screen name="Cart" component={CartStack} options={{ title: 'Cart' }} />
-        <Tab.Screen name="Chat" component={Chat} />
-        <Tab.Screen name="Notification" component={Notification} />
-
-        {/* <Tab.Screen name="Settings" component={Settings} /> */}
-        <Tab.Screen name="Settings" component={SettingsStack} options={{ title: 'Settings' }} />
-      </Tab.Navigator>
-
-
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        <RootStack.Screen name="MainTabs" component={MainTabs} />
+        <RootStack.Screen name="Chat" component={Chat} />
+      </RootStack.Navigator>
     </NavigationContainer >
   );
 }
