@@ -1,3 +1,4 @@
+import axios from "axios";
 import { apiWithFallback } from '../config/axios';
 
 //api using for add to cart

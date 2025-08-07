@@ -1,4 +1,0 @@
-@import "tailwindcss";
-@plugin "daisyui"{
-  exclude: checkbox, footer, typography, glass, rootcolor, rootscrollgutter;
-}
