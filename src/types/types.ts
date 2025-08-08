@@ -1,62 +1,103 @@
+// src/types/types.ts
+
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { MaterialTopTabScreenProps } from '@react-navigation/material-top-tabs';
 
+// CẬP NHẬT: Thêm AuthStack và thay đổi RootStack
+export type AuthStackParamList = {
+    Login: undefined;
+    Register: undefined;
+};
 
-// (A) Type cho Stack lồng trong Tab "Shop"
-export type ShopStackParamList = {
-    Shop: undefined; // Màn hình gốc của Shop Stack
+// Top Tab in Shop
+export type ShopTopTabParamList = {
     'Mystery Box': undefined;
-    'Box Detail': { boxId: string };
     'Collection Store': undefined;
+};
+
+// Top Tab in Shopping Cart
+export type ShoppingCartTopTabParamList = {
+    'Favorite Boxes': undefined;
+    'Favorite Products': undefined;
+};
+
+// Top Tab in Transaction History
+export type TransactionTopTabParamList = {
+    Received: undefined;
+    Spent: undefined;
+};
+
+// Stack for Shop tab
+export type ShopStackParamList = {
+    Shop: NavigatorScreenParams<ShopTopTabParamList>;
+    'Box Detail': { boxId: string };
     'Collection Detail': { productId: string };
 };
 
-// (B) Type cho Stack lồng trong Tab "Cart"
-export type CartStackParamList = {
-    Cart: undefined;
-    Favorite: undefined;
+// CẬP NHẬT: Thêm các màn hình Auction
+export type AuctionTopTabParamList = {
+    'Đang diễn ra': undefined;
+    'Của tôi': undefined;
 };
 
-// THÊM MỚI: Type cho Stack lồng trong Tab "Settings"
-export type SettingsStackParamList = {
-    Settings: undefined;
-    Profile: undefined;
-    UpdateProfile: undefined;
+// CẬP NHẬT: Thêm WithdrawRequest vào PaymentStackParamList
+export type PaymentStackParamList = {
+    Payment: undefined;
+    TopUpPackages: undefined;
+    WithdrawRequest: undefined; // <-- Thêm màn hình mới
 };
 
+// Stack for Shopping Cart (from header)
+export type ShoppingCartStackParamList = {
+    ShoppingCart: NavigatorScreenParams<ShoppingCartTopTabParamList>;
+};
 
-// (C) Cập nhật RootTabParamList
-// Thay vì `Shop: undefined`, chúng ta báo cho nó biết "Shop" chứa cả một Stack Navigator
+// Bottom Tab Navigator
 export type RootTabParamList = {
-    Shop: NavigatorScreenParams<ShopStackParamList>; // <-- Thay đổi ở đây
-    Auction: undefined;
-    Cart: NavigatorScreenParams<CartStackParamList>; // <-- Thay đổi ở đây
+    Shop: NavigatorScreenParams<ShopStackParamList>;
+    Auction: NavigatorScreenParams<AuctionTopTabParamList>; // <-- Thay đổi ở đây
+    Payment: NavigatorScreenParams<PaymentStackParamList>;
     Chat: undefined;
-    Notification: undefined;
-    Settings: undefined;
-    // Bạn không cần Favorite và Profile ở đây nữa vì chúng đã nằm trong các Stack khác
 };
 
-
-// (D) Export sẵn các Type cho từng màn hình để dễ sử dụng
-// -- Props cho các màn hình trong Tab Navigator --
-export type ShopTabProps = CompositeScreenProps<
-    BottomTabScreenProps<RootTabParamList, 'Shop'>,
-    NativeStackScreenProps<ShopStackParamList>
->;
-
-// -- Props cho các màn hình trong Shop Stack --
-export type ShopScreenProps = NativeStackScreenProps<ShopStackParamList, 'Shop'>;
-export type BoxDetailScreenProps = NativeStackScreenProps<ShopStackParamList, 'Box Detail'>;
-// ... tương tự cho các màn hình khác trong ShopStack
-
-// THÊM DÒNG NÀY VÀO CUỐI FILE
-export type RootTabNavigationProp = BottomTabNavigationProp<RootTabParamList>;
-
-// (E) Root Stack ngoài cùng chứa Tab + Chat
+// Root Stack (Whole App)
 export type RootStackParamList = {
-    MainTabs: NavigatorScreenParams<RootTabParamList>; // Tab chứa Shop, Cart, v.v.
-    Chat: undefined; // Màn hình Chat riêng, không nằm trong Tab
+    Auth: undefined; // Màn hình chứa tab Login/Register
+    MainTabs: NavigatorScreenParams<RootTabParamList>;
+    ShoppingCartStack: NavigatorScreenParams<ShoppingCartStackParamList>;
+    Profile: undefined;
+    Settings: undefined;
+    UpdateProfile: undefined;
+    'Help & Feedback': undefined;
+    TopUpPackages: undefined;
+    SellerProfile: { sellerId: string }; // <-- Thêm màn hình mới
+    Chatbox: { userName: string; avatarUrl: string };
+    WithdrawRequest: undefined; // <-- Thêm màn hình mới
+    AuctionDetail: { auctionId: string }; // <-- Thêm màn hình mới
+    OrderHistory: undefined; // <-- Thêm màn hình mới
+    ExchangeRequests: undefined; // <-- Thêm màn hình mới
 };
+
+// --- TYPE PROPS ---
+export type RootStackScreenProps<T extends keyof RootStackParamList> =
+    NativeStackScreenProps<RootStackParamList, T>;
+
+export type RootStackNavigationProp = RootStackScreenProps<'MainTabs'>['navigation'];
+
+// SỬA LỖI: Thêm lại type helper này
+export type ShopStackScreenProps<T extends keyof ShopStackParamList> =
+    NativeStackScreenProps<ShopStackParamList, T>;
+
+export type ShopTopTabScreenProps<T extends keyof ShopTopTabParamList> =
+    CompositeScreenProps<
+        MaterialTopTabScreenProps<ShopTopTabParamList, T>,
+        NativeStackScreenProps<ShopStackParamList>
+    >;
+
+export type ShoppingCartTopTabScreenProps<T extends keyof ShoppingCartTopTabParamList> =
+    CompositeScreenProps<
+        MaterialTopTabScreenProps<ShoppingCartTopTabParamList, T>,
+        NativeStackScreenProps<ShoppingCartStackParamList>
+    >;
