@@ -1,23 +1,56 @@
-import { toast } from "react-toastify";
-import api from "../config/axios";
 import { apiWithFallback } from '../config/axios';
 
-export const createRating = async (data) => {
+export const getFeedbackOfSellProduct = async (sellProductID) => {
   try {
-    const response = await api.post('rating', data);
+    const response = await apiWithFallback({
+      method: "get",
+      url: `/cs/api/Feedback/Get-feedback-of-sell-product`,
+      params: { sellProductID },
+      requiresAuth: true,
+    });
+
     return response.data;
-
   } catch (error) {
-    toast.error(error.response.data);
+    console.error("Error when get feedback of sell product:", error);
+    throw error;
   }
-}
-
-export const createReport = async (data) => {
+};
+export const createFeedback = async ({ Exchange_infoId, Content, Rating }) => {
   try {
-    const response = await api.post('report', data);
-    return response.data;
+    console.log("[createFeedback] Send feedback with data:", {
+      Exchange_infoId,
+      Content,
+      Rating
+    });
 
+    const formData = new FormData();
+    formData.append("Exchange_infoId", Exchange_infoId);
+    formData.append("Content", Content);
+    formData.append("Rating", Rating);
+
+    console.log("[createFeedback] FormData create:",
+      [...formData.entries()] // hiển thị các cặp key-value trong formData
+    );
+
+    const response = await apiWithFallback({
+      method: "post",
+      url: "/cs/api/Feedback/Create-feedback",
+      data: formData,
+      // headers: {
+      //   "Content-Type": "multipart/form-data",
+      // },
+      requiresAuth: true, // interceptor sẽ tự gắn token
+    });
+
+    console.log("[createFeedback] API returrn:", response);
+
+    return response.data;
   } catch (error) {
-    toast.error(error.response.data);
+    console.error("[createFeedback] Error when create feedback:", error);
+
+    // hiện thông báo lỗi từ backend nếu có
+    throw error.response?.data || new Error("Error when create feedback");
+
+    // throw error;
   }
-}
+};

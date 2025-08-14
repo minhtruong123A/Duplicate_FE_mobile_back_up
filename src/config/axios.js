@@ -1,99 +1,50 @@
 import axios from "axios";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { navigate } from '../navigation/RootNavigation';
+import { CS_API, BACKUP_CS_API, PY_API, BACKUP_PY_API } from '@env';
 
 // Lấy API URL từ biến môi trường
-const CS_API = import.meta.env.VITE_API_CS_KEY;
-const BACKUP_CS_API = import.meta.env.VITE_BACKUP_CS_KEY;
-
-const PY_API = import.meta.env.VITE_API_PY_KEY;
-const BACKUP_PY_API = import.meta.env.VITE_BACKUP_PY_KEY;
-
+// const CS_API = "https://api.mmb.io.vn/cs";
+// const BACKUP_CS_API = "https://mmb-be-dotnet.onrender.com";
+// const PY_API = "https://api.mmb.io.vn/py";
+// const BACKUP_PY_API = "https://sep490-manga-mystery-box-pybe.onrender.com";
 // Tạo instance Axios cho từng API
+
 const primaryAxios = axios.create({
   baseURL: CS_API,
-  timeout: 5000,
+  timeout: 10000,
 });
 
 const backupAxios = axios.create({
   baseURL: BACKUP_CS_API,
-  timeout: 5000,
+  timeout: 10000,
 });
 
 const pythonAxios = axios.create({
   baseURL: PY_API,
-  timeout: 5000,
+  timeout: 10000,
 });
 
 const backupPythonAxios = axios.create({
   baseURL: BACKUP_PY_API,
-  timeout: 5000,
+  timeout: 10000,
 });
 
-// Gắn token cho tất cả instance
-// const attachToken = (instance) => {
-//   instance.interceptors.request.use(
-//     (config) => {
-//       const token = localStorage.getItem("token");
-//       if (token) {
-//         config.headers.Authorization = `Bearer ${token}`;
-//       }
-//       return config;
-//     },
-//     (error) => Promise.reject(error)
-//   );
-// };
-
-// [primaryAxios, backupAxios, pythonAxios, backupPythonAxios].forEach(attachToken);
+export const IMAGE_BASE_URL = `${CS_API}/api/ImageProxy`;
+export const BACKUP_IMAGE_BASE_URL = `${BACKUP_CS_API}/api/ImageProxy`;
 
 attachInterceptorsTo(primaryAxios);
 attachInterceptorsTo(backupAxios);
 attachInterceptorsTo(pythonAxios);
 attachInterceptorsTo(backupPythonAxios);
 
-// 🔁 Interceptor xử lý refresh token cho .NET (C#)
-// primaryAxios.interceptors.response.use(
-//   (response) => {
-//     if (response.status === 201) {
-//       console.log("Tạo mới thành công:", response.data);
-//     }
-//     return response;
-//   },
-//   async (error) => {
-//     const originalRequest = error.config;
-//     if (error.response?.status === 401 && !originalRequest._retry) {
-//       originalRequest._retry = true;
-//       try {
-//         const refreshToken = localStorage.getItem("refreshToken");
-//         const res = await pythonAxios.post(`/api/user/auth/refresh?token=${refreshToken}`);
-//         const newAccessToken = res.data.access_token;
-//         localStorage.setItem("token", newAccessToken);
-//         if (res.data.refresh_token) {
-//           localStorage.setItem("refreshToken", res.data.refresh_token);
-//         }
-//         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-//         return primaryAxios(originalRequest);
-//       } catch (refreshError) {
-//         localStorage.removeItem("token");
-//         localStorage.removeItem("refreshToken");
-//         window.location.href = "/login";
-//         return Promise.reject(refreshError);
-//       }
-//     }
-
-//     if (error.response?.status === 403) {
-//       console.warn("Không có quyền truy cập vào tài nguyên này.");
-//     }
-
-//     return Promise.reject(error);
-//   }
-// );
-
 function attachInterceptorsTo(instance) {
 
   instance.interceptors.request.use(
-    (config) => {
+    async (config) => {
       // Nếu config.requiresAuth === true thì tự động gắn token
       if (config.requiresAuth) {
-        const token = localStorage.getItem("token");
+        const token = await AsyncStorage.getItem("userToken");
         if (token) {
           config.headers = config.headers || {};
           config.headers.Authorization = `Bearer ${token}`;
@@ -116,10 +67,15 @@ function attachInterceptorsTo(instance) {
     async (error) => {
       const originalRequest = error.config;
 
+      // Nếu chính request refresh token bị lỗi thì throw luôn để vào catch
+      if (originalRequest.url.includes('/api/user/auth/refresh')) {
+        throw new Error("Refresh token request failed");
+      }
+
       if (error.response?.status === 401 && !originalRequest._retry) {
         originalRequest._retry = true;
         try {
-          const refreshToken = localStorage.getItem("refreshToken");
+          const refreshToken = await AsyncStorage.getItem("refreshToken");
           // const res = await pythonAxios.post(`/api/user/auth/refresh?token=${refreshToken}`);
 
           const res = await pythonApiWithFallback({
@@ -128,16 +84,20 @@ function attachInterceptorsTo(instance) {
           });
 
           const newAccessToken = res.data.access_token;
-          localStorage.setItem("token", newAccessToken);
+          const newRefreshToken = res.data.refresh_token;
+
+          await AsyncStorage.setItem("userToken", newAccessToken);
           if (res.data.refresh_token) {
-            localStorage.setItem("refreshToken", res.data.refresh_token);
+            await AsyncStorage.setItem("refreshToken", newRefreshToken);
           }
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return instance(originalRequest);
         } catch (refreshError) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("refreshToken");
-          window.location.href = "/login";
+          await AsyncStorage.removeItem("userToken");
+          await AsyncStorage.removeItem("refreshToken");
+          // window.location.href = "/login";
+          console.error("Session expired. Please log in again.");
+          navigate('Auth');
           return Promise.reject(refreshError);
         }
       }
@@ -172,7 +132,9 @@ const pythonApiWithFallback = async (config) => {
   }
 };
 
-export const api = pythonAxios;
+export const PYTHON_API_BASE_URL = 'https://api.mmb.io.vn/py'
+
+// export const api = PYTHON_API_BASE_URL;
 // Export các instance để dùng trực tiếp nếu cần
 export default primaryAxios; // Dùng mặc định là C#
 export {
@@ -180,5 +142,5 @@ export {
   backupAxios,
   backupPythonAxios,
   apiWithFallback,
-  pythonApiWithFallback,
+  pythonApiWithFallback
 };

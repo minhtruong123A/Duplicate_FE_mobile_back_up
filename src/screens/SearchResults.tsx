@@ -1,16 +1,16 @@
-// src/screens/SearchResults.tsx
-
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, SafeAreaView, TextInput } from 'react-native';
+import React, { useState, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, TextInput, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Svg, Path } from 'react-native-svg';
 
-import { fakeBoxData, MysteryBox } from '../data/boxData';
-import { fakeProductData, ProductCard } from '../data/productData';
-import { RootStackNavigationProp } from '../types/types';
+// CẬP NHẬT: Import API và các type thật
+import { getAllMysteryBoxes } from '../services/api.mysterybox';
+import { getAllProductsOnSale } from '../services/api.product';
+import { RootStackNavigationProp, MysteryBoxItem, ProductOnSaleItem } from '../types/types';
+import ApiImage from '../components/ApiImage'; // Dùng component ảnh chung
 
-// Union type để gộp cả hai loại sản phẩm vào một danh sách
-type SearchResultItem = (MysteryBox & { itemType: 'box' }) | (ProductCard & { itemType: 'product' });
+// CẬP NHẬT: Union type dùng type thật từ API
+type SearchResultItem = (MysteryBoxItem & { itemType: 'box' }) | (ProductOnSaleItem & { itemType: 'product' });
 
 type SearchResultsProps = {
     onClose: () => void;
@@ -26,33 +26,75 @@ const SearchIcon = (props: any) => (
 
 export default function SearchResults({ onClose }: SearchResultsProps) {
     const navigation = useNavigation<RootStackNavigationProp>();
+
+    // THÊM MỚI: State để lưu toàn bộ dữ liệu từ API
+    const [allBoxes, setAllBoxes] = useState<MysteryBoxItem[]>([]);
+    const [allProducts, setAllProducts] = useState<ProductOnSaleItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true); // State cho lần tải dữ liệu đầu tiên
+    const [error, setError] = useState<string | null>(null);
+
     const [activeFilter, setActiveFilter] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
 
+    // THÊM MỚI: useEffect để tải toàn bộ dữ liệu khi component được mở
+    useEffect(() => {
+        const fetchAllData = async () => {
+            try {
+                // Gọi đồng thời 2 API để tăng tốc
+                const [boxResponse, productResponse] = await Promise.all([
+                    getAllMysteryBoxes(),
+                    getAllProductsOnSale(),
+                ]);
+
+                // Xử lý và lưu trữ dữ liệu Mystery Boxes
+                if (boxResponse.status && Array.isArray(boxResponse.data)) {
+                    const activeBoxes = boxResponse.data.filter((box: MysteryBoxItem) => box.status === 1);
+                    setAllBoxes(activeBoxes);
+                }
+
+                // Xử lý và lưu trữ dữ liệu Products
+                if (productResponse.status && Array.isArray(productResponse.data)) {
+                    const availableProducts = productResponse.data.filter((p: ProductOnSaleItem) => p.quantity > 0 && p.isSell);
+                    setAllProducts(availableProducts);
+                }
+
+                setError(null);
+            } catch (err) {
+                console.error("Failed to load search data:", err);
+                setError("Could not load data.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchAllData();
+    }, []); // Mảng rỗng đảm bảo chỉ chạy 1 lần
+
+    // CẬP NHẬT: useMemo giờ sẽ tìm kiếm trên dữ liệu thật đã tải về
     const searchResults = useMemo(() => {
         const query = searchQuery.toLowerCase();
-        if (!query) return [];
+        if (!query || isLoading) return []; // Không tìm kiếm nếu chưa nhập hoặc đang tải dữ liệu
 
         let results: SearchResultItem[] = [];
 
-        // Lọc và tìm kiếm trong Mystery Boxes
+        // Tìm kiếm trong Mystery Boxes
         if (activeFilter === 'All' || activeFilter === 'Mystery Box') {
-            const boxResults = fakeBoxData
-                .filter(box => box.name.toLowerCase().includes(query))
+            const boxResults = allBoxes
+                .filter(box => box.mysteryBoxName.toLowerCase().includes(query))
                 .map(box => ({ ...box, itemType: 'box' as const }));
             results.push(...boxResults);
         }
 
-        // Lọc và tìm kiếm trong Products
+        // Tìm kiếm trong Products
         if (activeFilter === 'All' || activeFilter === 'Collection Store') {
-            const productResults = fakeProductData
+            const productResults = allProducts
                 .filter(product => product.name.toLowerCase().includes(query))
                 .map(product => ({ ...product, itemType: 'product' as const }));
             results.push(...productResults);
         }
 
         return results;
-    }, [searchQuery, activeFilter]);
+    }, [searchQuery, activeFilter, allBoxes, allProducts, isLoading]);
 
     const handleItemPress = (item: SearchResultItem) => {
         onClose(); // Đóng cửa sổ tìm kiếm
@@ -75,16 +117,24 @@ export default function SearchResults({ onClose }: SearchResultsProps) {
         }
     };
 
-    const renderItem = ({ item }: { item: SearchResultItem }) => (
-        <TouchableOpacity style={styles.resultItem} onPress={() => handleItemPress(item)}>
-            <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
-            <View style={styles.itemInfo}>
-                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.itemCollection}>{item.collection}</Text>
-            </View>
-            <Text style={styles.itemPrice}>{item.price.toLocaleString('vi-VN')} đ</Text>
-        </TouchableOpacity>
-    );
+    // CẬP NHẬT: renderItem để hiển thị đúng thuộc tính từ API
+    const renderItem = ({ item }: { item: SearchResultItem }) => {
+        const name = item.itemType === 'box' ? item.mysteryBoxName : item.name;
+        const subText = item.itemType === 'box' ? item.collectionTopic : item.topic;
+        // SỬA LỖI: Lấy giá tiền theo đúng tên thuộc tính của từng loại item
+        const price = item.itemType === 'box' ? item.mysteryBoxPrice : item.price;
+
+        return (
+            <TouchableOpacity style={styles.resultItem} onPress={() => handleItemPress(item)}>
+                <ApiImage urlPath={item.urlImage} style={styles.itemImage} />
+                <View style={styles.itemInfo}>
+                    <Text style={styles.itemName} numberOfLines={1}>{name}</Text>
+                    <Text style={styles.itemCollection}>{subText}</Text>
+                </View>
+                <Text style={styles.itemPrice}>{price.toLocaleString('vi-VN')} đ</Text>
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -93,10 +143,11 @@ export default function SearchResults({ onClose }: SearchResultsProps) {
                     <SearchIcon />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Find..."
+                        placeholder="Find boxes, collections..."
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         autoFocus={true}
+                        returnKeyType="search"
                     />
                 </View>
                 <TouchableOpacity onPress={onClose}>
@@ -115,18 +166,25 @@ export default function SearchResults({ onClose }: SearchResultsProps) {
                     </TouchableOpacity>
                 ))}
             </View>
-            <FlatList
-                data={searchResults}
-                renderItem={renderItem}
-                keyExtractor={(item) => item.id + item.itemType}
-                ListEmptyComponent={
-                    searchQuery ? (
-                        <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No result for "{searchQuery}"</Text>
-                        </View>
-                    ) : null
-                }
-            />
+
+            {/* CẬP NHẬT: Hiển thị ActivityIndicator khi đang tải dữ liệu ban đầu */}
+            {isLoading ? (
+                <ActivityIndicator style={{ marginTop: 50 }} size="large" color="#d9534f" />
+            ) : (
+                <FlatList
+                    data={searchResults}
+                    renderItem={renderItem}
+                    keyExtractor={(item) => item.id + item.itemType}
+                    ListEmptyComponent={
+                        searchQuery ? (
+                            <View style={styles.emptyContainer}>
+                                <Text style={styles.emptyText}>No results for "{searchQuery}"</Text>
+                                {error && <Text style={styles.errorText}>{error}</Text>}
+                            </View>
+                        ) : null
+                    }
+                />
+            )}
         </SafeAreaView>
     );
 }
@@ -143,11 +201,12 @@ const styles = StyleSheet.create({
     filterText: { fontFamily: 'Oxanium-SemiBold', color: '#333' },
     activeFilterText: { color: '#fff' },
     resultItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-    itemImage: { width: 50, height: 50, borderRadius: 8, marginRight: 12 },
+    itemImage: { width: 50, height: 50, borderRadius: 8, marginRight: 12, backgroundColor: '#e0e0e0' },
     itemInfo: { flex: 1 },
     itemName: { fontFamily: 'Oxanium-Bold', fontSize: 16 },
     itemCollection: { fontFamily: 'Oxanium-Regular', fontSize: 12, color: '#666' },
     itemPrice: { fontFamily: 'Oxanium-SemiBold', fontSize: 14, color: '#d9534f' },
     emptyContainer: { paddingTop: 50, alignItems: 'center' },
     emptyText: { fontSize: 16, color: '#666', fontFamily: 'Oxanium-Regular' },
+    errorText: { fontSize: 14, color: 'red', marginTop: 10 },
 });

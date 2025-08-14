@@ -1,14 +1,16 @@
-// src/screens/TopUpPackages.tsx
-
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView } from 'react-native';
 
+// Dữ liệu mới dựa trên hình ảnh, bỏ shortLabel không cần thiết cho giao diện cũ
 const packages = [
-    { id: '1', name: 'Gói Tiết Kiệm', amount: 50000 },
-    { id: '2', name: 'Gói Tiêu Chuẩn', amount: 100000 },
-    { id: '3', name: 'Gói Nâng Cao', amount: 200000 },
-    { id: '4', name: 'Gói Cao Cấp', amount: 500000 },
-    { id: '5', name: 'Gói Đại Gia', amount: 1000000 },
+    { id: '1', name: 'Quick Charge', amount: 25000 },
+    { id: '2', name: 'Power Pack', amount: 59000 },
+    { id: '3', name: 'Elite Scroll', amount: 79000 },
+    { id: '4', name: 'Mythic Cache', amount: 129000 },
+    { id: '5', name: 'Shogun\'s Trove', amount: 379000 },
+    { id: '6', name: 'Artisan Ink', amount: 779000 },
+    { id: '7', name: 'Dragon\'s Hoard', amount: 1299000 },
+    { id: '8', name: 'Cosmic Bundle', amount: 2499000 },
 ];
 
 export default function TopUpPackages() {

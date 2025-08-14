@@ -1,6 +1,6 @@
 // src/components/CustomHeader.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Image,
@@ -11,14 +11,18 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Alert,
+  ActivityIndicator
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Svg, Path } from 'react-native-svg';
 import CartIcon from '../../assets/icons/cart_outline.svg';
 import MmbLogo from '../../assets/icons/mmb_logo.svg';
 import { RootStackNavigationProp } from '../types/types';
 import SearchResults from '../screens/SearchResults'; // Import component mới
 import { useAuth } from '../context/AuthContext'; // Import useAuth hook
+// --- IMPORT CÁC HÀM MỚI ---
+import { getProfile } from '../services/api.user';
+import { buildImageUrl } from '../services/api.imageproxy';
 
 // --- Icons ---
 const SearchIcon = (props: any) => (
@@ -67,6 +71,11 @@ export default function CustomHeader() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const { logout } = useAuth(); // Lấy hàm logout từ context
+  // --- STATE MỚI ĐỂ LƯU THÔNG TIN PROFILE ---
+  const [profile, setProfile] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [useBackup, setUseBackup] = useState(false);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -80,14 +89,41 @@ export default function CustomHeader() {
     );
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      const fetchProfileData = async () => {
+        try {
+          setIsLoading(true);
+          const response = await getProfile();
+          if (response && response.data) {
+            setProfile(response.data);
+          }
+        } catch (error) {
+          console.error("Failed to fetch profile in header:", error);
+          // Có thể hiển thị một thông báo lỗi nhỏ ở đây nếu cần
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchProfileData();
+
+      // Cleanup function (không cần thiết trong trường hợp này nhưng là good practice)
+      return () => { };
+    }, [])
+  );
+
   const menuItems = [
-    { label: 'Profile', action: () => navigation.navigate('Profile'), icon: <ProfileIcon /> },
+    { label: 'Profile', action: () => navigation.navigate('Profile', { reload: Date.now() }), icon: <ProfileIcon /> },
     { label: 'Order History', action: () => navigation.navigate('OrderHistory'), icon: <OrderIcon /> },
-    { label: 'Exchange History', action: () => navigation.navigate('ExchangeRequests'), icon: <ExchangeIconMenu /> },
-    { label: 'Settings', action: () => navigation.navigate('Settings'), icon: <SettingsIcon /> },
-    { label: 'Help & Feedback', action: () => navigation.navigate('Help & Feedback'), icon: <HelpIcon /> },
+    { label: 'Exchanges', action: () => navigation.navigate('ExchangeRequests'), icon: <ExchangeIconMenu /> },
+    // { label: 'Settings', action: () => navigation.navigate('Settings'), icon: <SettingsIcon /> },
+    { label: 'Policies', action: () => navigation.navigate('Help & Feedback'), icon: <HelpIcon /> },
     { label: 'Log out', action: handleLogout, icon: <LogoutIcon /> },
   ];
+
+  // const avatarUrl = profile?.profileImage ? buildImageUrl(profile.profileImage) : null;
+  const avatarUrl = profile?.profileImage ? buildImageUrl(profile.profileImage, useBackup) : null;
 
   return (
     <View style={styles.headerContainer}>
@@ -146,11 +182,36 @@ export default function CustomHeader() {
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setMenuVisible(true)}>
+            {isLoading ? (
+              <ActivityIndicator style={styles.avatar} color="#d9534f" />
+            ) : avatarUrl && !imageLoadFailed ? (
+              <Image
+                source={{ uri: avatarUrl }}
+                style={styles.avatar}
+                onError={() => {
+                  if (!useBackup) {
+                    console.log("Ảnh trên server chính lỗi, chuyển sang backup server");
+                    setUseBackup(true);
+                  } else {
+                    console.log("Ảnh trên server backup cũng lỗi, dùng ảnh local");
+                    setImageLoadFailed(true);
+                  }
+                }}
+              />
+            ) : (
+              // Nếu không có avatar hoặc ảnh load lỗi thì hiện logo.png
+              <Image
+                source={require('../../assets/logo.png')}
+                style={styles.avatar}
+              />
+            )}
+          </TouchableOpacity>
+          {/* <TouchableOpacity onPress={() => setMenuVisible(true)}>
             <Image
               source={{ uri: 'https://mmb-be-dotnet.onrender.com/cs/api/ImageProxy/5804dc84-a559-4ea1-b887-6db398a4b56b.jpg' }}
               style={styles.avatar}
             />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
     </View>
@@ -233,4 +294,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   logoutItemText: { color: '#d9534f' },
+  // --- STYLE MỚI CHO AVATAR PLACEHOLDER ---
+  avatarPlaceholder: {
+    backgroundColor: '#e1e1e1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarPlaceholderText: {
+    color: '#666',
+    fontSize: 18,
+    fontFamily: 'Oxanium-Bold',
+  },
 });

@@ -1,5 +1,6 @@
 {
   "expo": {
+    "owner": "minhtruong123a",
     "name": "SEP490_FE_mobile",
     "slug": "SEP490_FE_mobile",
     "version": "1.0.0",
@@ -20,10 +21,22 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.minhtruong123a.SEP490_FE_mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "027beabc-aaeb-478f-b6ce-6aed4796c009"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/027beabc-aaeb-478f-b6ce-6aed4796c009"
     }
   }
 }

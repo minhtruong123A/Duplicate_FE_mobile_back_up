@@ -26,12 +26,12 @@ export default function Auction() {
           tabBarLabelStyle: { fontFamily: 'Oxanium-Bold', textTransform: 'none' },
         }}
       >
-        <TopTab.Screen name="Đang diễn ra" component={OngoingAuctions} />
-        <TopTab.Screen name="Của tôi" component={MyAuctions} />
+        <TopTab.Screen name="Auctions" component={OngoingAuctions} />
+        <TopTab.Screen name="My Auction" component={MyAuctions} />
       </TopTab.Navigator>
-      <TouchableOpacity style={styles.fab}>
+      {/* <TouchableOpacity style={styles.fab}>
         <AddIcon />
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   );
 }

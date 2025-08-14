@@ -1,4 +1,3 @@
-import { toast } from "react-toastify";
 import { apiWithFallback } from '../config/axios';
 
 //get the comment by the product when ever user see
@@ -11,8 +10,8 @@ export const getAllCommentsBySellProduct = async (sellProductId) => {
 
     return response.data;
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching comments");
-    return null;
+    console.error("Error fetching comments:", error.response?.data);
+    throw error.response?.data || new Error("Error fetching comments");
   }
 };
 
@@ -26,8 +25,8 @@ export const getAllRatingsBySellProduct = async (sellProductId) => {
 
     return response.data;
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching ratings");
-    return null;
+    console.error("Error fetching ratings:", error.response?.data);
+    throw error.response?.data || new Error("Error fetching ratings");
   }
 };
 
@@ -43,11 +42,8 @@ export const createComment = async ({ sellProductId, content }) => {
 
     return response.data;
   } catch (error) {
-    console.log(error);
-    toast.error(
-      error.response?.data?.error || error.message || "Error creating comment"
-    );
-    return null;
+    console.error("Error creating comment:", error.response?.data);
+    throw error.response?.data || new Error("Error creating comment");
   }
 };
 
@@ -61,12 +57,10 @@ export const createRate = async ({ sellProductId, rating }) => {
       data: { sellProductId, rating },
       requiresAuth: true, // tự gắn Bearer token nếu có
     });
-
     return response.data;
   } catch (error) {
-    console.error(error);
-    toast.error(error.response?.data?.error || error.message || "Error creating rating");
-    return null;
+    console.error("Error creating rating:", error.response?.data);
+    throw error.response?.data || new Error("Error creating rating");
   }
 };
 
@@ -82,14 +76,12 @@ export const getAllBadwords = async () => {
   if (badwordsCache && badwordsCacheTimestamp && (now - badwordsCacheTimestamp < BADWORDS_CACHE_TTL)) {
     return badwordsCache;
   }
-
   try {
     const response = await apiWithFallback({
       method: "get",
       url: "/api/Comment/get-all-badwords",
     });
     // Đảm bảo phản hồi hợp lệ mới cache
-
     if (response?.data.data && Array.isArray(response.data.data)) {
       badwordsCache = response.data.data;
       badwordsCacheTimestamp = now;
@@ -98,8 +90,10 @@ export const getAllBadwords = async () => {
       throw new Error("Invalid response format");
     }
   } catch (error) {
-    console.error("Error fetching bad words:", error);
-    toast.error(error.response?.data?.error || error.message || "Error fetching bad words");
-    return badwordsCache || []; // fallback: trả về cache cũ nếu có
+    console.error("Error fetching bad words:", error.response?.data);
+    if (badwordsCache) {
+      return badwordsCache;
+    }
+    throw error.response?.data || new Error("Error fetching bad words");
   }
 };

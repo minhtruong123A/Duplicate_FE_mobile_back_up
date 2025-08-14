@@ -1,52 +1,4 @@
-import { toast } from "react-toastify"
 import { apiWithFallback } from "../config/axios";
-import axios from "axios";
-// export const getProduct = async () => {
-//    try{
-//     const response = await api.get("product")
-//     return response.data;
-//    }catch(error){
-//     toast.error(error.response.data)
-//    }
-// }
-
-// export const createProduct = async (product) => {
-//     try{
-//      const response = await api.post("product", product)
-//      return response.data;
-//     }catch(error){
-//      toast.error(error.response.data)
-//     }
-//  }
-
-// export const updateProduct = async ({id,product}) => {
-//    try{
-//    const response = await api.put(`product/${id}`, product);
-//    return response.data;
-//    }catch(error){
-//    toast.error(error.response.data)
-//    }
-// };
-
-// export const deleteProduct = async (id) => {
-//    try{
-//    const response = await api.delete(`product/${id}`);
-//    return response.data;
-//    }catch(error){
-//    toast.error(error.response.data);
-//    return null;
-//    }
-// };
-
-// export const getAllProductsOnSale = async () => {
-//   try {
-//     const response = await api.get("/api/SellProduct/get-all-product-on-sale");
-//     return response.data;
-//   } catch (error) {
-//     toast.error(error.response?.data?.error || "Error fetching products on sale");
-//     return null;
-//   }
-// }
 
 //api using for get all of product on sale
 export const getAllProductsOnSale = async () => {
@@ -57,8 +9,8 @@ export const getAllProductsOnSale = async () => {
     });
     return response.data;
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching products on sale");
-    return null;
+    console.error("Error fetching products on sale:", error.response?.data);
+    throw error.response?.data || new Error("Error fetching products on sale");
   }
 }
 
@@ -71,8 +23,8 @@ export const getProductOnSaleDetail = async (id) => {
     });
     return response.data;
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching product detail");
-    return null;
+    console.error("Error fetching product detail:", error.response?.data);
+    throw error.response?.data || new Error("Error fetching product detail");
   }
 }
 
@@ -85,16 +37,10 @@ export const buyProductOnSale = async ({ sellProductId, quantity }) => {
       data: { sellProductId, quantity },
       requiresAuth: true, // tự động gắn token từ interceptor
     });
-
     return response.data;
   } catch (error) {
-    const backendError = error.response?.data || {
-      status: false,
-      error: "Unexpected error occurred.",
-      errorCode: 500,
-    };
-    toast.error(backendError.error || "Error buying product on sale");
-    return backendError;
+    console.error("Error buying product on sale:", error.response?.data);
+    throw error.response?.data || new Error("Error buying product on sale");
   }
 };
 
@@ -107,24 +53,10 @@ export const getCollectionDetail = async (id) => {
     });
     return response.data;
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching product detail");
-    return null;
+    console.error("Error fetching collection detail:", error.response?.data);
+    throw error.response?.data || new Error("Error fetching collection detail");
   }
 };
-
-// // Create rating only API call
-// export const createRatingOnly = async ({ sellProductId, rating }) => {
-//   try {
-//     const response = await api.post(
-//       'https://mmb-be-dotnet.onrender.com/api/Comment/create-rating-only',
-//       { sellProductId, rating }
-//     );
-//     return response.data;
-//   } catch (error) {
-//     toast.error(error.response?.data?.error || 'Error creating rating');
-//     return null;
-//   }
-// };
 
 //this api using for changing the status of product for update
 export const TurnOnOffProductOnSale = async (id) => {
@@ -137,8 +69,8 @@ export const TurnOnOffProductOnSale = async (id) => {
     });
     return response.data;
   } catch (error) {
-    toast.error(error.response?.data?.error || "Lỗi bật/tắt bán sản phẩm");
-    return null;
+    console.error("Error toggling product on sale status:", error.response?.data);
+    throw error.response?.data || new Error("Error toggling product on sale status");
   }
 };
 
@@ -153,7 +85,7 @@ export const updateSellProduct = async ({ id, description, price, updatedAt }) =
     });
     return response.data;
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error updating sell product");
-    return null;
+    console.error("Error updating sell product:", error.response?.data);
+    throw error.response?.data || new Error("Error updating sell product");
   }
 };

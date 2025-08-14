@@ -1,23 +1,18 @@
-// src/screens/Payment.tsx
-
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, ActivityIndicator } from 'react-native';
 import { createMaterialTopTabNavigator, MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
 import { Svg, Path, Rect } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
-import { RootStackNavigationProp } from '../types/types';
 
-// --- Dữ liệu giả cho tổng tiền ---
-const MOCK_TOTALS = {
-    received: 1500000,
-    spent: 450000,
-};
+// CẬP NHẬT: Import API và types thật
+import { RootStackNavigationProp, TransactionItem, WhoAmIResponseData } from '../types/types';
+import { getTransaction } from '../services/api.order'; // Giả sử API ở đây
+import { fetchUserInfo } from '../services/api.auth'; // Giả sử API ở đây
 
-// --- Component Tab Bar Tùy Chỉnh ---
-const CustomTabBar = ({ state, descriptors, navigation }: MaterialTopTabBarProps) => {
+// --- Component Tab Bar Tùy Chỉnh (Cập nhật để nhận props) ---
+const CustomTabBar = ({ state, descriptors, navigation, totalReceived, totalSpent }: MaterialTopTabBarProps & { totalReceived: number, totalSpent: number }) => {
     return (
         <View style={styles.tabBarContainer}>
-            {/* Phần chứa các nút tab (bên trái) */}
             <View style={styles.tabButtonsContainer}>
                 {state.routes.map((route, index) => {
                     const { options } = descriptors[route.key];
@@ -30,59 +25,92 @@ const CustomTabBar = ({ state, descriptors, navigation }: MaterialTopTabBarProps
                             target: route.key,
                             canPreventDefault: true,
                         });
-
                         if (!isFocused && !event.defaultPrevented) {
                             navigation.navigate(route.name);
                         }
                     };
 
                     return (
-                        <TouchableOpacity
-                            key={route.key}
-                            onPress={onPress}
-                            style={[styles.tabButton, isFocused && styles.tabButtonActive]}
-                        >
-                            <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-                                {label}
-                            </Text>
+                        <TouchableOpacity key={route.key} onPress={onPress} style={[styles.tabButton, isFocused && styles.tabButtonActive]}>
+                            <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>{label}</Text>
                         </TouchableOpacity>
                     );
                 })}
             </View>
 
-            {/* Phần hiển thị tổng tiền (bên phải) */}
             <View style={styles.totalsContainer}>
                 <Text style={styles.totalText}>
-                    Received: <Text style={styles.totalAmountReceived}>{MOCK_TOTALS.received.toLocaleString('vi-VN')}vnd</Text>
+                    Received: <Text style={styles.totalAmountReceived}>{totalReceived.toLocaleString('vi-VN')} đ</Text>
                 </Text>
                 <Text style={styles.totalText}>
-                    Spent: <Text style={styles.totalAmountSpent}>{MOCK_TOTALS.spent.toLocaleString('vi-VN')}vnd</Text>
+                    Spent: <Text style={styles.totalAmountSpent}>{totalSpent.toLocaleString('vi-VN')} đ</Text>
                 </Text>
             </View>
         </View>
     );
 };
 
+// --- Component hiển thị danh sách giao dịch ---
+const getStatusStyle = (status: TransactionItem['status']) => {
+    switch (status) {
+        case 'Success': return { color: '#28a745', text: 'Success' };
+        case 'Pending': return { color: '#ffc107', text: 'Pending' };
+        case 'Cancel': return { color: '#dc3545', text: 'Cancelled' };
+        default: return { color: '#6c757d', text: 'Unknown' };
+    }
+};
 
-// --- Các Component và Màn Hình Chính ---
+const TransactionHistoryScreen = ({ transactions }: { transactions: TransactionItem[] }) => {
+    const renderItem = ({ item }: { item: TransactionItem }) => {
+        const statusStyle = getStatusStyle(item.status);
+        const date = new Date(item.dataTime).toLocaleString('vi-VN');
 
-const TransactionHistoryScreen = ({ type }: { type: 'received' | 'spent' }) => (
-    <View style={styles.historyContainer}>
-        <Text>Transaction History {type === 'received' ? 'received' : 'spent'}.</Text>
-    </View>
-);
+        return (
+            <View style={styles.transactionItem}>
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.transactionType}>{item.type}</Text>
+                    <Text style={styles.transactionDate}>{date}</Text>
+                    <Text style={styles.transactionCode}>Code: {item.transactionCode}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={[styles.transactionAmount, { color: item.type === 'Recharge' ? '#dc3545' : '#28a745' }]}>
+                        {item.type === 'Recharge' ? '-' : '+'} {item.amount.toLocaleString('vi-VN')} đ
+                    </Text>
+                    <Text style={[styles.transactionStatus, { color: statusStyle.color }]}>{statusStyle.text}</Text>
+                </View>
+            </View>
+        );
+    };
+
+    return (
+        <View style={styles.historyContainer}>
+            <FlatList
+                data={transactions}
+                renderItem={renderItem}
+                keyExtractor={item => item.id}
+                contentContainerStyle={{ padding: 16 }}
+                ListEmptyComponent={<Text style={styles.emptyText}>No transactions found.</Text>}
+            />
+        </View>
+    );
+};
 
 const TopTab = createMaterialTopTabNavigator();
 
-function TransactionTabs() {
+// --- Component chứa các Tab ---
+function TransactionTabs({ receivedList, spentList, totalReceived, totalSpent }: {
+    receivedList: TransactionItem[],
+    spentList: TransactionItem[],
+    totalReceived: number,
+    totalSpent: number
+}) {
     return (
-        // Sử dụng tabBar tùy chỉnh
-        <TopTab.Navigator tabBar={props => <CustomTabBar {...props} />}>
-            <TopTab.Screen name="Received" options={{ title: "received" }}>
-                {() => <TransactionHistoryScreen type="received" />}
+        <TopTab.Navigator tabBar={props => <CustomTabBar {...props} totalReceived={totalReceived} totalSpent={totalSpent} />}>
+            <TopTab.Screen name="Received" options={{ title: "Received" }}>
+                {() => <TransactionHistoryScreen transactions={receivedList} />}
             </TopTab.Screen>
-            <TopTab.Screen name="Spent" options={{ title: "spent" }}>
-                {() => <TransactionHistoryScreen type="spent" />}
+            <TopTab.Screen name="Spent" options={{ title: "Spent" }}>
+                {() => <TransactionHistoryScreen transactions={spentList} />}
             </TopTab.Screen>
         </TopTab.Navigator>
     );
@@ -102,41 +130,103 @@ const WithdrawIcon = (props: any) => (
     </Svg>
 );
 
+
+// --- Component chính của màn hình ---
 export default function Payment() {
     const navigation = useNavigation<RootStackNavigationProp>();
+
+    const [balance, setBalance] = useState<number>(0);
+    const [transactions, setTransactions] = useState<TransactionItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                setLoading(true);
+                const [userInfoResponse, transactionData] = await Promise.all([
+                    fetchUserInfo(),
+                    getTransaction(),
+                ]);
+
+                if (userInfoResponse.status && userInfoResponse.data) {
+                    setBalance(userInfoResponse.data.wallet_amount);
+                }
+
+                if (Array.isArray(transactionData)) {
+                    setTransactions([...transactionData].reverse());
+                }
+
+                setError(null);
+            } catch (err: any) {
+                setError("Failed to load payment data.");
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadData();
+    }, []);
+
+    const { totalReceived, totalSpent, receivedList, spentList } = useMemo(() => {
+        const successfulTransactions = transactions.filter(t => t.status === 'Success');
+
+        const totalReceived = successfulTransactions
+            .filter(t => t.type === 'Withdraw')
+            .reduce((sum, t) => sum + t.amount, 0);
+
+        const totalSpent = successfulTransactions
+            .filter(t => t.type === 'Recharge')
+            .reduce((sum, t) => sum + t.amount, 0);
+
+        // LƯU Ý: API của bạn không có type 'Withdraw', nên receivedList có thể sẽ luôn rỗng
+        const receivedList = transactions.filter(t => t.type === 'Withdraw');
+        const spentList = transactions.filter(t => t.type === 'Recharge');
+
+        return { totalReceived, totalSpent, receivedList, spentList };
+    }, [transactions]);
+
+    if (loading) {
+        return <SafeAreaView style={styles.centerContainer}><ActivityIndicator size="large" color="#d9534f" /></SafeAreaView>;
+    }
+
+    if (error) {
+        return <SafeAreaView style={styles.centerContainer}><Text style={{ color: 'red' }}>{error}</Text></SafeAreaView>;
+    }
 
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.balanceContainer}>
                 <Text style={styles.balanceLabel}>Current Balance</Text>
-                <Text style={styles.balanceAmount}>5,400,000 VND</Text>
-                {/* CẬP NHẬT: Thêm hàng chứa 2 nút */}
+                <Text style={styles.balanceAmount}>{balance.toLocaleString('vi-VN')} VND</Text>
                 <View style={styles.actionRow}>
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => navigation.navigate('TopUpPackages')}
-                    >
+                    <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('TopUpPackages')}>
                         <TopUpIcon />
                         <Text style={styles.actionButtonText}>Top Up</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => navigation.navigate('WithdrawRequest')}
-                    >
+                    <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('WithdrawRequest')}>
                         <WithdrawIcon />
                         <Text style={styles.actionButtonText}>Withdraw</Text>
                     </TouchableOpacity>
                 </View>
             </View>
-            <TransactionTabs />
+            <TransactionTabs
+                receivedList={receivedList}
+                spentList={spentList}
+                totalReceived={totalReceived}
+                totalSpent={totalSpent}
+            />
         </SafeAreaView>
     );
 }
 
+
+// ... (styles cũ)
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
+    centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     balanceContainer: {
-        backgroundColor: '#d9534f',
+        backgroundColor: '#5cb85c',
         padding: 24,
         alignItems: 'center',
     },
@@ -172,11 +262,8 @@ const styles = StyleSheet.create({
     },
     historyContainer: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
         backgroundColor: '#f0f2f5'
     },
-    // Styles for Custom Tab Bar
     tabBarContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -218,10 +305,47 @@ const styles = StyleSheet.create({
     },
     totalAmountReceived: {
         fontFamily: 'Oxanium-Bold',
-        color: '#28a745', // Xanh lá
+        color: '#28a745',
     },
     totalAmountSpent: {
         fontFamily: 'Oxanium-Bold',
-        color: '#dc3545', // Đỏ
+        color: '#dc3545',
     },
+    transactionItem: {
+        flexDirection: 'row',
+        backgroundColor: '#fff',
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 10,
+    },
+    transactionType: {
+        fontFamily: 'Oxanium-Bold',
+        fontSize: 16,
+    },
+    transactionDate: {
+        fontFamily: 'Oxanium-Regular',
+        fontSize: 12,
+        color: '#666',
+        marginVertical: 2,
+    },
+    transactionCode: {
+        fontFamily: 'Oxanium-Regular',
+        fontSize: 12,
+        color: '#aaa',
+    },
+    transactionAmount: {
+        fontFamily: 'Oxanium-Bold',
+        fontSize: 16,
+        marginBottom: 4,
+    },
+    transactionStatus: {
+        fontFamily: 'Oxanium-Bold',
+        fontSize: 12,
+    },
+    emptyText: {
+        textAlign: 'center',
+        marginTop: 40,
+        fontFamily: 'Oxanium-Regular',
+        color: '#888',
+    }
 });

@@ -23,8 +23,8 @@ export default function Auth() {
                     tabBarLabelStyle: { fontFamily: 'Oxanium-Bold', fontSize: 16 },
                 }}
             >
-                <TopTab.Screen name="Login" component={Login} options={{ title: "Đăng nhập" }} />
-                <TopTab.Screen name="Register" component={Register} options={{ title: "Đăng ký" }} />
+                <TopTab.Screen name="Login" component={Login} options={{ title: "Login" }} />
+                <TopTab.Screen name="Register" component={Register} options={{ title: "Register" }} />
             </TopTab.Navigator>
         </SafeAreaView>
     );

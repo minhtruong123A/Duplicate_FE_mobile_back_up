@@ -1,4 +1,3 @@
-import { toast } from "react-toastify"
 import { apiWithFallback } from '../config/axios';
 
 //this api using to get all of the mysterybox that have in the system for collector
@@ -10,8 +9,9 @@ export const getAllMysteryBoxes = async () => {
     });
     return response.data;
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching mystery boxes");
-    return null;
+    console.error("Error when list mystery box:", error.response?.data);
+    // Ném lỗi ra ngoài
+    throw error.response?.data || new Error("Error when list mystery box");
   }
 };
 //this api using for getting the detial of the mysterybox 
@@ -23,8 +23,9 @@ export const getMysteryBoxDetail = async (id) => {
     });
     return response.data;
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching box detail");
-    return null;
+    console.error("Error when get mystery box detail:", error.response?.data);
+    // Ném lỗi ra ngoài
+    throw error.response?.data || new Error("Error when get mystery box detail");
   }
 };
 
@@ -40,12 +41,8 @@ export const buyMysteryBox = async ({ mangaBoxId, quantity }) => {
 
     return response.data;
   } catch (error) {
-    const backendError = error.response?.data || {
-      status: false,
-      error: "Unexpected error occurred.",
-      errorCode: 500,
-    };
-    toast.error(backendError.error || "Error buying product on sale");
-    return backendError;
+    console.error("Error when buy mystery box:", error.response?.data);
+    // Ném lỗi ra ngoài
+    throw error.response?.data || new Error("Error when buy mystery box");
   }
 };

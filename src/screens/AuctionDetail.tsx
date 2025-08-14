@@ -1,72 +1,378 @@
-// src/screens/AuctionDetail.tsx
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, FlatList } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, SafeAreaView, ScrollView, TextInput, TouchableOpacity, Alert, FlatList } from 'react-native';
-import { fakeAuctionData, Bid } from '../data/auctionData';
-import { RootStackScreenProps } from '../types/types';
+// --- Types, APIs, Components ---
+import { RootStackScreenProps, AuctionProduct, CollectionDetailItem, AuctionDetailData, UserProfile, BidHistoryItem, AppNavigationProp } from '../types/types';
+import { fetchAuctionProduct, joinAuction, getBidAuction, addBidAuction, confirmAuctionResult, checkIsJoinedAuction } from '../services/api.auction';
+import { getCollectionDetail } from '../services/api.product';
+import { getOtherProfile } from '../services/api.user';
+import ApiImage from '../components/ApiImage';
+import AuctionSocket from '../config/auctionSocket';
+import { useAuth } from '../context/AuthContext';
+import { PYTHON_API_BASE_URL } from '../config/axios';
+
+
+// Helper function để style cho rarity
+const getRarityColor = (rarity?: string) => {
+    if (!rarity) return '#000';
+    const lowerRarity = rarity.toLowerCase();
+    switch (lowerRarity) {
+        case 'legendary': return '#FFD700'; case 'epic': return '#A020F0';
+        case 'rare': return '#1E90FF'; case 'uncommon': return '#32CD32';
+        case 'common': return '#A9A9A9'; default: return '#000';
+    }
+};
 
 export default function AuctionDetail({ route }: RootStackScreenProps<'AuctionDetail'>) {
     const { auctionId } = route.params;
-    const auction = fakeAuctionData.find(a => a.id === auctionId);
+    const navigation = useNavigation<AppNavigationProp>();
+    const { user: currentUser, userToken } = useAuth();
+
+    // --- State Management ---
+    const [auctionData, setAuctionData] = useState<AuctionDetailData | null>(null);
+    const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
+    const [currentPrice, setCurrentPrice] = useState(0);
+    const [hasJoined, setHasJoined] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [isJoining, setIsJoining] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [bidAmount, setBidAmount] = useState('');
 
-    if (!auction) {
-        return <SafeAreaView><Text>Không tìm thấy phiên đấu giá.</Text></SafeAreaView>;
-    }
+    const socketRef = useRef<AuctionSocket | null>(null);
+    const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    const handlePlaceBid = () => {
-        const amount = parseFloat(bidAmount);
-        if (isNaN(amount) || amount <= auction.currentBid) {
-            Alert.alert("Giá không hợp lệ", `Giá của bạn phải cao hơn ${auction.currentBid.toLocaleString('vi-VN')} đ.`);
-            return;
+    // --- WebSocket & Polling Logic ---
+    // Bọc trong useCallback để tránh tạo lại hàm không cần thiết
+    const initializeWebSocketAndPolling = useCallback(async (sessionId: string) => {
+        try {
+            const historyRes = await getBidAuction(sessionId);
+            if (historyRes.success && Array.isArray(historyRes.data)) {
+                // "Dịch" dữ liệu từ API sang định dạng mà component có thể hiểu
+                const processedHistory = await Promise.all(
+                    historyRes.data.map(async (bid: any) => {
+                        let bidderUsername = 'A bidder';
+                        try {
+                            const profileRes = await getOtherProfile(bid.bidder_id);
+                            if (profileRes.status && profileRes.data) {
+                                bidderUsername = profileRes.data.username;
+                            }
+                        } catch { /* Bỏ qua lỗi nếu không tìm thấy profile */ }
+
+                        return {
+                            _id: bid._id,
+                            user_id: bid.bidder_id,
+                            username: bidderUsername,
+                            price: bid.bid_amount,
+                            created_at: bid.bid_time.replace(" ", "T") + "Z", // Sửa định dạng ngày
+                        };
+                    })
+                );
+                setBidHistory(processedHistory);
+            }
+        } catch (error) {
+            console.error("Failed to fetch initial bid history", error);
         }
-        Alert.alert("Thành công", `Bạn đã đặt giá thành công ${amount.toLocaleString('vi-VN')} đ.`);
-        setBidAmount('');
+
+        if (socketRef.current) socketRef.current.close();
+        const socket = new AuctionSocket({
+            urlBase: PYTHON_API_BASE_URL,
+            auctionId: sessionId,
+            token: userToken || '',
+            debug: true,
+            reconnect: false
+        });
+
+        // SỬA LỖI LOGIC HOÀN CHỈNH
+        socket.onmessage = async (payload) => {
+            console.log("WebSocket message received:", payload);
+
+            if (payload && payload.bid_amount && payload.bidder_id) {
+                const newPrice = parseFloat(payload.bid_amount);
+
+                // 1. Cập nhật giá mới nhất
+                setAuctionData(prevData => {
+                    if (!prevData) return null;
+                    return { ...prevData, currentPrice: newPrice };
+                });
+
+                // 2. Lấy username của người vừa bid
+                let bidderUsername = 'A bidder';
+                try {
+                    const profileRes = await getOtherProfile(payload.bidder_id);
+                    if (profileRes.status && profileRes.data) {
+                        bidderUsername = profileRes.data.username;
+                    }
+                } catch (e) {
+                    console.error("Could not fetch bidder profile", e);
+                }
+
+                // 3. Sửa định dạng ngày tháng
+                const formattedDate = (payload.bid_time || "").replace(" ", "T") + "Z";
+
+                // 4. Tạo object bid mới
+                const newBid: BidHistoryItem = {
+                    _id: `ws-${Date.now()}`,
+                    user_id: payload.bidder_id,
+                    username: bidderUsername,
+                    price: newPrice,
+                    created_at: formattedDate,
+                };
+
+                // 5. Thêm vào đầu danh sách lịch sử
+                setBidHistory(prevHistory => [newBid, ...prevHistory]);
+            }
+        };
+        socket.onclose = () => console.log("WebSocket disconnected.");
+        socketRef.current = socket;
+
+        if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
+        const intervalId = setInterval(async () => {
+            try {
+                const resultRes = await confirmAuctionResult(sessionId);
+                if (resultRes.success && resultRes.data?.[0] === false) {
+                    clearInterval(intervalId);
+                    socketRef.current?.close();
+                    const latestHistory = await getBidAuction(sessionId);
+                    const winner = latestHistory.data?.[0];
+                    const alertMessage = winner && winner.user_id === currentUser?.id
+                        ? "Congratulations! You won the auction!"
+                        : "The auction has now ended.";
+                    Alert.alert("Auction Finished", alertMessage, [{ text: 'OK', onPress: () => navigation.navigate("MainTabs", { screen: "Shop", params: { screen: "Shop", params: { screen: "Mystery Box" } } }) }]);
+                }
+            } catch (error) {
+                // console.error("Polling error:", error); 
+            }
+        }, 60000);
+        pollingTimerRef.current = intervalId;
+    }, [userToken, currentUser, navigation]); // Thêm dependencies
+
+    // --- Data Fetching ---
+    // Bọc logic fetch chính trong useCallback
+    const loadInitialData = useCallback(async () => {
+        try {
+            setLoading(true);
+            const auctionProductRes = await fetchAuctionProduct(auctionId);
+            if (!auctionProductRes.success || !auctionProductRes.data || auctionProductRes.data.length === 0) {
+                throw new Error("Auction product not found.");
+            }
+            const auctionProduct: AuctionProduct = auctionProductRes.data[0];
+            // setCurrentPrice(auctionProduct.current_price);
+
+            const [productDetailRes, sellerProfileRes] = await Promise.all([
+                getCollectionDetail(auctionProduct.user_product_id),
+                getOtherProfile(auctionProduct.seller_id)
+            ]);
+
+            if (!productDetailRes.status || !productDetailRes.data) throw new Error("Product details not found.");
+            if (!sellerProfileRes.status || !sellerProfileRes.data) throw new Error("Seller profile not found.");
+
+            const productDetail: CollectionDetailItem = productDetailRes.data;
+            const sellerProfile: UserProfile = sellerProfileRes.data;
+
+            setAuctionData({
+                auctionProductId: auctionProduct._id,
+                startingPrice: auctionProduct.starting_price,
+                currentPrice: auctionProduct.current_price,
+                quantity: auctionProduct.quantity,
+                sellerId: auctionProduct.seller_id,
+                productName: productDetail.name,
+                productImageUrl: productDetail.urlImage,
+                productRarity: productDetail.rarityName,
+                description: productDetail.description,
+                sellerUsername: sellerProfile.username,
+                sellerProfileImage: sellerProfile.profileImage,
+                auctionSessionId: auctionProduct.auction_session_id,
+            });
+
+            // THÊM LẠI LOGIC KIỂM TRA ĐÃ THAM GIA
+            const isJoinedRes = await checkIsJoinedAuction();
+            if (isJoinedRes.success && isJoinedRes.data?.[0] === true) {
+                console.log("User already joined. Initializing real-time data...");
+                setHasJoined(true);
+                await initializeWebSocketAndPolling(auctionProduct.auction_session_id);
+            }
+
+            setError(null);
+        } catch (err: any) {
+            setError(err.message || "Failed to load auction details.");
+        } finally {
+            setLoading(false);
+        }
+    }, [auctionId, initializeWebSocketAndPolling]);
+
+    // useEffect để gọi hàm loadData
+    useEffect(() => {
+        loadInitialData();
+    }, [loadInitialData]);
+
+    // --- Lifecycle Cleanup ---
+    useEffect(() => {
+        return () => {
+            console.log("Cleaning up auction connections...");
+            socketRef.current?.close();
+            if (pollingTimerRef.current) {
+                clearInterval(pollingTimerRef.current);
+            }
+        };
+    }, []);
+
+    // HÀM ĐÃ ĐƯỢC VIẾT LẠI THEO LOGIC MỚI
+    const handleJoinAuction = async () => {
+        if (!auctionData) return;
+        Alert.alert(
+            "Join Auction",
+            "Are you sure you want to join this auction? For the next 15 minutes, you will not be able to purchase items or request withdrawals. Do you want to continue?",
+            [
+                { text: "Cancel", style: 'cancel' },
+                {
+                    text: "OK",
+                    onPress: async () => {
+                        setIsJoining(true);
+                        try {
+                            // BƯỚC 1: Kiểm tra trước
+                            const checkRes = await checkIsJoinedAuction();
+
+                            // Case 1: Đã tham gia rồi -> Vào thẳng
+                            if (checkRes?.success && checkRes.data?.[0] === true) {
+                                console.log("User has already joined. Proceeding...");
+                                setHasJoined(true);
+                                await initializeWebSocketAndPolling(auctionData.auctionSessionId);
+                            }
+                            // Case 2: Chưa tham gia -> Gọi API join
+                            else if (checkRes?.success && checkRes.data?.[0] === false) {
+                                console.log("User has not joined. Attempting to join...");
+                                const joinRes = await joinAuction(auctionData.auctionSessionId);
+                                console.log("joinRes raw:", joinRes);
+                                console.log("joinRes.error (json):", JSON.stringify(joinRes?.error));
+                                if (!joinRes.success && joinRes.error?.includes("already joined !")) {
+                                    console.log("hahahahahahahah")
+                                    setHasJoined(true);
+                                    await initializeWebSocketAndPolling(auctionData.auctionSessionId);
+                                } else {
+                                    // Lỗi từ API joinAuction
+                                    throw new Error(joinRes?.error || "Failed to join auction.");
+                                }
+                            }
+                            // Case 3: Lỗi từ API checkIsJoinedAuction
+                            else {
+                                throw new Error(checkRes?.error || "Could not check auction status.");
+                            }
+                        } catch (err: any) {
+                            Alert.alert("Error", err.message || "An error occurred.");
+                        } finally {
+                            setIsJoining(false);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
-    const renderBidHistoryItem = ({ item }: { item: Bid }) => (
-        <View style={styles.historyItem}>
-            <Text style={styles.bidderName}>{item.bidderName}</Text>
-            <Text style={styles.bidAmount}>{item.amount.toLocaleString('vi-VN')} đ</Text>
-            <Text style={styles.bidTimestamp}>{item.timestamp}</Text>
-        </View>
-    );
+    const handlePlaceBid = async () => {
+        if (!auctionData) return;
+        const amount = parseFloat(bidAmount);
+        if (isNaN(amount) || amount <= auctionData.currentPrice) {
+            Alert.alert("Invalid Bid", `Your bid must be higher than ${auctionData.currentPrice.toLocaleString('vi-VN')} đ.`);
+            return;
+        }
+
+        try {
+            const bidRes = await addBidAuction(auctionData.auctionSessionId, amount);
+            if (bidRes.success) {
+                Alert.alert("Success", "Your bid has been placed.");
+                setBidAmount('');
+                // Không cần cập nhật UI ở đây, WebSocket sẽ lo việc đó
+            } else {
+                throw new Error(bidRes.error || "Failed to place bid.");
+            }
+        } catch (err: any) {
+            Alert.alert("Error", err.message || "An error occurred.");
+        }
+    };
+
+    if (loading) {
+        return <SafeAreaView style={styles.container}><ActivityIndicator style={{ flex: 1 }} size="large" color="#d9534f" /></SafeAreaView>;
+    }
+
+    if (error || !auctionData) {
+        return <SafeAreaView style={styles.container}><Text style={styles.errorText}>{error || 'Auction not found.'}</Text></SafeAreaView>;
+    }
 
     return (
         <SafeAreaView style={styles.container}>
             <ScrollView>
-                <Image source={{ uri: auction.productImageUrl }} style={styles.productImage} />
+                <ApiImage urlPath={auctionData.productImageUrl} style={styles.productImage} />
+                <View style={styles.priceInfo}>
+                    <Text style={styles.priceLabel}>Highest Bid:</Text>
+                    <Text style={[styles.priceValue, { color: '#28a745' }]}>{(auctionData.currentPrice ?? 0).toLocaleString('vi-VN')} đ</Text>
+                </View>
                 <View style={styles.infoContainer}>
-                    <Text style={styles.productName}>{auction.productName}</Text>
+                    {/* PHẦN CODE ĐƯỢC THÊM LẠI */}
+                    <View style={styles.nameRow}>
+                        <Text style={styles.productName}>{auctionData.productName}</Text>
+                        <View style={[styles.rarityBadge, { borderColor: getRarityColor(auctionData.productRarity) }]}>
+                            <Text style={[styles.rarityText, { color: getRarityColor(auctionData.productRarity) }]}>
+                                {auctionData.productRarity.toUpperCase()}
+                            </Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity style={styles.sellerContainer} onPress={() => navigation.navigate('SellerProfile', { sellerId: auctionData.sellerId })}>
+                        <ApiImage urlPath={auctionData.sellerProfileImage} style={styles.sellerAvatar} />
+                        <Text style={styles.sellerName}>by {auctionData.sellerUsername}</Text>
+                    </TouchableOpacity>
+
                     <View style={styles.priceInfo}>
-                        <Text style={styles.priceLabel}>Giá khởi điểm:</Text>
-                        <Text style={styles.priceValue}>{auction.startingPrice.toLocaleString('vi-VN')} đ</Text>
+                        <Text style={styles.priceLabel}>Starting Price:</Text>
+                        <Text style={styles.priceValue}>{(auctionData.startingPrice ?? 0).toLocaleString('vi-VN')} đ</Text>
                     </View>
                     <View style={styles.priceInfo}>
-                        <Text style={styles.priceLabel}>Giá cao nhất:</Text>
-                        <Text style={[styles.priceValue, { color: '#28a745' }]}>{auction.currentBid.toLocaleString('vi-VN')} đ</Text>
+                        <Text style={styles.priceLabel}>Highest Bid:</Text>
+                        <Text style={[styles.priceValue, { color: '#28a745' }]}>{(auctionData.currentPrice ?? 0).toLocaleString('vi-VN')} đ</Text>
                     </View>
                     <View style={styles.divider} />
-                    <Text style={styles.sectionTitle}>Lịch sử đấu giá ({auction.bidCount} lượt)</Text>
-                    <FlatList
-                        data={auction.biddingHistory}
-                        renderItem={renderBidHistoryItem}
-                        keyExtractor={item => item.id}
-                        scrollEnabled={false} // Vô hiệu hóa cuộn của FlatList
-                    />
+                    <Text style={styles.sectionTitle}>Description</Text>
+                    <Text style={styles.descriptionText}>{auctionData.description}</Text>
+                    <View style={styles.divider} />
+                    {/* KẾT THÚC PHẦN CODE ĐƯỢC THÊM LẠI */}
+                    <Text style={styles.sectionTitle}>Bid History ({bidHistory.length} bids)</Text>
+                    {hasJoined ? (
+                        <FlatList
+                            data={bidHistory}
+                            keyExtractor={item => item._id}
+                            renderItem={({ item }) => (
+                                <View style={styles.historyItem}>
+                                    <Text style={styles.bidderName}>{item.username}</Text>
+                                    <Text style={styles.bidAmount}>{(item.price ?? 0).toLocaleString('vi-VN')} đ</Text>
+                                    <Text style={styles.bidTimestamp}>{new Date(item.created_at).toLocaleTimeString('vi-VN')}</Text>
+                                </View>
+                            )}
+                            scrollEnabled={false}
+                        />
+                    ) : (
+                        <Text style={styles.placeholderText}>Join the auction to see bid history.</Text>
+                    )}
                 </View>
             </ScrollView>
-            <View style={styles.bidInputContainer}>
-                <TextInput
-                    style={styles.input}
-                    placeholder={`Giá > ${auction.currentBid.toLocaleString('vi-VN')} đ`}
-                    keyboardType="numeric"
-                    value={bidAmount}
-                    onChangeText={setBidAmount}
-                />
-                <TouchableOpacity style={styles.bidButton} onPress={handlePlaceBid}>
-                    <Text style={styles.bidButtonText}>Đấu giá</Text>
-                </TouchableOpacity>
+            <View style={styles.footer}>
+                {!hasJoined ? (
+                    <TouchableOpacity style={[styles.joinButton, isJoining && styles.disabledButton]} onPress={handleJoinAuction} disabled={isJoining}>
+                        {isJoining ? <ActivityIndicator color="#fff" /> : <Text style={styles.joinButtonText}>Join Auction</Text>}
+                    </TouchableOpacity>
+                ) : (
+                    <View style={styles.bidInputContainer}>
+                        <TextInput
+                            style={styles.input}
+                            placeholder={`Bid > ${(auctionData.currentPrice ?? 0).toLocaleString('vi-VN')} đ`}
+                            keyboardType="numeric"
+                            value={bidAmount}
+                            onChangeText={setBidAmount}
+                        />
+                        <TouchableOpacity style={styles.bidButton} onPress={handlePlaceBid}>
+                            <Text style={styles.bidButtonText}>Place Bid</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         </SafeAreaView>
     );
@@ -74,20 +380,133 @@ export default function AuctionDetail({ route }: RootStackScreenProps<'AuctionDe
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
-    productImage: { width: '100%', height: 300, resizeMode: 'contain', backgroundColor: '#f0f2f5' },
+    centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    errorText: { flex: 1, textAlign: 'center', textAlignVertical: 'center', color: 'red' },
+    productImage: { width: '100%', height: 350, resizeMode: 'contain', backgroundColor: '#f0f2f5' },
     infoContainer: { padding: 16 },
-    productName: { fontSize: 24, fontFamily: 'Oxanium-Bold', marginBottom: 16 },
+
+    // Styles cho Tên và Độ hiếm
+    nameRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    productName: {
+        fontSize: 24,
+        fontFamily: 'Oxanium-Bold',
+        flex: 1,
+        marginRight: 8,
+    },
+    rarityBadge: {
+        borderWidth: 1.5,
+        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    rarityText: {
+        fontFamily: 'Oxanium-Bold',
+        fontSize: 12,
+    },
+
+    // Styles cho Thông tin người bán
+    sellerContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+    },
+    sellerAvatar: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        marginRight: 8,
+    },
+    sellerName: {
+        fontFamily: 'Oxanium-Regular',
+        fontSize: 14,
+        color: '#666'
+    },
+
+    // Styles cho Giá
     priceInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
     priceLabel: { fontSize: 16, fontFamily: 'Oxanium-Regular', color: '#666' },
     priceValue: { fontSize: 16, fontFamily: 'Oxanium-Bold' },
+
+    // Styles chung
     divider: { height: 1, backgroundColor: '#eee', marginVertical: 16 },
     sectionTitle: { fontSize: 18, fontFamily: 'Oxanium-Bold', marginBottom: 12 },
-    historyItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
-    bidderName: { flex: 1, fontFamily: 'Oxanium-SemiBold' },
-    bidAmount: { flex: 1, fontFamily: 'Oxanium-Regular', textAlign: 'center' },
-    bidTimestamp: { flex: 1, fontFamily: 'Oxanium-Regular', color: '#999', textAlign: 'right' },
-    bidInputContainer: { flexDirection: 'row', padding: 16, borderTopWidth: 1, borderTopColor: '#eee', backgroundColor: '#fff' },
-    input: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginRight: 8, fontFamily: 'Oxanium-Regular' },
-    bidButton: { backgroundColor: '#d9534f', padding: 12, borderRadius: 8, justifyContent: 'center' },
-    bidButtonText: { color: '#fff', fontFamily: 'Oxanium-Bold', fontSize: 16 },
+    descriptionText: {
+        fontFamily: 'Oxanium-Regular',
+        fontSize: 16,
+        lineHeight: 24,
+        color: '#333'
+    },
+    placeholderText: {
+        fontFamily: 'Oxanium-Regular',
+        fontStyle: 'italic',
+        color: '#888',
+        textAlign: 'center',
+        paddingVertical: 20,
+    },
+
+    // Styles cho Lịch sử đấu giá
+    historyItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f5f5f5'
+    },
+    bidderName: { flex: 1, fontFamily: 'Oxanium-SemiBold', fontSize: 15 },
+    bidAmount: { flex: 1, fontFamily: 'Oxanium-Regular', textAlign: 'center', fontSize: 15 },
+    bidTimestamp: { flex: 1, fontFamily: 'Oxanium-Regular', color: '#999', textAlign: 'right', fontSize: 14 },
+
+    // --- STYLES MỚI CHO FOOTER VÀ CÁC NÚT ---
+    footer: {
+        padding: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#eee',
+        backgroundColor: '#fff',
+    },
+    joinButton: {
+        backgroundColor: '#28a745', // Màu xanh lá
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    joinButtonText: {
+        fontSize: 18,
+        fontFamily: 'Oxanium-Bold',
+        color: '#fff',
+    },
+    disabledButton: {
+        backgroundColor: '#ccc',
+    },
+    bidInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    input: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: '#ccc',
+        borderRadius: 8,
+        padding: 12,
+        marginRight: 8,
+        fontFamily: 'Oxanium-Regular',
+        fontSize: 16
+    },
+    bidButton: {
+        backgroundColor: '#d9534f',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+        justifyContent: 'center'
+    },
+    bidButtonText: {
+        color: '#fff',
+        fontFamily: 'Oxanium-Bold',
+        fontSize: 16
+    },
 });

@@ -1,20 +1,24 @@
-// src/screens/FavoriteBoxes.tsx
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   FlatList,
-  Image,
   TouchableOpacity,
   SafeAreaView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { fakeBoxData, MysteryBox } from '../data/boxData';
-import { ShoppingCartTopTabScreenProps } from '../types/types';
+import { Ionicons } from '@expo/vector-icons'; // THÊM MỚI
+import AsyncStorage from '@react-native-async-storage/async-storage'; // THÊM MỚI
 
-// --- Components ---
+// --- Types, APIs, Components ---
+import { CartBoxItem } from '../types/types';
+import { removeFromCart, clearAllCart } from '../services/api.cart'; // API riêng cho box
+import { buyMysteryBox } from '../services/api.mysterybox'
+import ApiImage from '../components/ApiImage';
+
+// --- Components (Không đổi) ---
 const Checkbox = ({ isChecked, onPress }: { isChecked: boolean, onPress: () => void }) => (
   <TouchableOpacity onPress={onPress} style={[styles.checkboxBase, isChecked && styles.checkboxChecked]}>
     {isChecked && <Text style={styles.checkmark}>✓</Text>}
@@ -32,96 +36,227 @@ const QuantitySelector = ({ quantity, onDecrease, onIncrease }: { quantity: numb
     </TouchableOpacity>
   </View>
 );
-// ------------------
 
-export default function FavoriteBoxes({ navigation }: ShoppingCartTopTabScreenProps<'Favorite Boxes'>) {
-  const [boxes, setBoxes] = useState<MysteryBox[]>(fakeBoxData);
+// --- Màn hình chính ---
+export default function FavoriteBoxes({ boxes, refreshCart }: { boxes: CartBoxItem[], refreshCart: () => void }) {
+  // --- State Management ---
+  const [cartBoxes, setCartBoxes] = useState(boxes);
   const [selectedItems, setSelectedItems] = useState<Map<string, number>>(new Map());
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  // THÊM MỚI: State và logic cho "Yêu thích"
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
-  const handleToggleSelection = (id: string) => {
-    const newSelectedItems = new Map(selectedItems);
-    if (newSelectedItems.has(id)) {
-      newSelectedItems.delete(id);
-    } else {
-      newSelectedItems.set(id, 1);
+  // useEffect để đồng bộ dữ liệu từ props vào state
+  useEffect(() => {
+    setCartBoxes(boxes);
+
+    // CẬP NHẬT: Load và dọn dẹp danh sách yêu thích
+    const loadFavorites = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('favorite_boxes'); // Key khác
+        if (stored) {
+          const favsFromStorage: string[] = JSON.parse(stored);
+          const validFavs = favsFromStorage.filter(id =>
+            boxes.some(b => b.mangaBoxId === id)
+          );
+          setFavoriteIds(new Set(validFavs));
+          if (validFavs.length !== favsFromStorage.length) {
+            await AsyncStorage.setItem('favorite_boxes', JSON.stringify(validFavs));
+          }
+        }
+      } catch (e) {
+        console.log('Error loading favorite boxes', e);
+      }
+    };
+    loadFavorites();
+
+    const newSelected = new Map(selectedItems);
+    let selectionChanged = false;
+    for (const id of newSelected.keys()) {
+      if (!boxes.some(b => b.mangaBoxId === id)) {
+        newSelected.delete(id);
+        selectionChanged = true;
+      }
     }
-    setSelectedItems(newSelectedItems);
+    if (selectionChanged) {
+      setSelectedItems(newSelected);
+    }
+  }, [boxes]);
+
+  useEffect(() => {
+    if (favoriteIds.size === 0 || selectedItems.size === 0) return;
+    const newSelected = new Map(selectedItems);
+    let changed = false;
+    for (const id of Array.from(newSelected.keys())) {
+      if (favoriteIds.has(id)) {
+        newSelected.delete(id);
+        changed = true;
+      }
+    }
+    if (changed) setSelectedItems(newSelected);
+  }, [favoriteIds]);
+
+  const selectableItems = useMemo(
+    () => cartBoxes.filter(item => !favoriteIds.has(item.mangaBoxId)),
+    [cartBoxes, favoriteIds]
+  );
+
+  const selectableCount = selectableItems.length;
+  // --- CÁC HÀM XỬ LÝ SỰ KIỆN ---
+  // THÊM MỚI: Hàm xử lý toggle yêu thích
+  const toggleFavorite = async (id: string) => {
+    const newFavs = new Set(favoriteIds);
+    if (newFavs.has(id)) {
+      newFavs.delete(id);
+    } else {
+      newFavs.add(id);
+    }
+    setFavoriteIds(newFavs);
+    await AsyncStorage.setItem('favorite_boxes', JSON.stringify(Array.from(newFavs)));
+  };
+
+
+  const handleToggleSelection = (item: CartBoxItem) => {
+    if (favoriteIds.has(item.mangaBoxId)) return;
+
+    const newSelected = new Map(selectedItems);
+    if (newSelected.has(item.mangaBoxId)) {
+      newSelected.delete(item.mangaBoxId);
+    } else {
+      // Khi chọn, lấy số lượng hiện tại là 1 (hoặc item.quantity nếu API trả về)
+      newSelected.set(item.mangaBoxId, 1);
+    }
+    setSelectedItems(newSelected);
   };
 
   const handleQuantityChange = (id: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      handleToggleSelection(id);
+    // Nếu giảm số lượng xuống dưới 1 -> Hỏi để xóa
+    if (newQuantity < 1) {
+      Alert.alert(
+        "Remove Item", "Do you want to remove this box from your cart?",
+        [
+          { text: "Cancel", style: 'cancel' },
+          {
+            text: "Yes", style: 'destructive', onPress: async () => {
+              await removeFromCart({ sellProductId: "", mangaBoxId: id });
+              refreshCart();
+            }
+          },
+        ]
+      );
       return;
     }
-    // Giả sử mỗi box chỉ có thể mua 10 cái
+    // Giới hạn số lượng mua tối đa
     if (newQuantity > 10) {
-      Alert.alert("Notification", "You can only purchase up to 10 boxes.");
+      Alert.alert("Notification", "You can only purchase up to 10 boxes of the same type.");
       return;
     }
-    const newSelectedItems = new Map(selectedItems);
-    newSelectedItems.set(id, newQuantity);
-    setSelectedItems(newSelectedItems);
+
+    // Với Box, chỉ cần cập nhật số lượng ở local state để checkout
+    const newSelected = new Map(selectedItems);
+    newSelected.set(id, newQuantity);
+    setSelectedItems(newSelected);
+  };
+
+  const handleDeleteSelected = () => {
+    const idsToDelete = Array.from(selectedItems.keys());
+    if (idsToDelete.length === 0) return;
+
+    Alert.alert(
+      "Confirm Deletion", `Are you sure you want to remove ${idsToDelete.length} item(s) from your cart?`,
+      [{ text: "Cancel" }, {
+        text: "Delete",
+        style: 'destructive',
+        onPress: async () => {
+          if (selectedItems.size === cartBoxes.length) {
+            await clearAllCart('box');
+          } else {
+            await Promise.all(idsToDelete.map(id => removeFromCart({ sellProductId: "", mangaBoxId: id })));
+          }
+          refreshCart();
+        }
+      }]
+    );
+  };
+
+  const handleCheckout = async () => {
+    const itemsToBuy = Array.from(selectedItems.entries());
+    if (itemsToBuy.length === 0) {
+      Alert.alert("No items selected", "Please select items to checkout.");
+      return;
+    }
+
+    setIsCheckingOut(true);
+    // Dùng Promise.allSettled để không bị dừng lại khi có lỗi
+    await Promise.allSettled(
+      itemsToBuy.map(([mangaBoxId, quantity]) => buyMysteryBox({ mangaBoxId, quantity }))
+    );
+    setIsCheckingOut(false);
+
+    // Sau khi checkout, thông báo và làm mới giỏ hàng
+    Alert.alert("Checkout Complete", "Thank you for your purchase! Check your collection for new items.");
+    refreshCart();
   };
 
   const handleToggleSelectAll = () => {
-    if (selectedItems.size === boxes.length) {
+    if (selectedItems.size === selectableCount && selectableCount > 0) {
       setSelectedItems(new Map());
     } else {
-      const allSelected = new Map(boxes.map(b => [b.id, 1]));
+      const allSelected = new Map(selectableItems.map(p => [p.mangaBoxId, p.quantity]));
       setSelectedItems(allSelected);
     }
   };
 
-  const handleDeleteSelected = () => {
-    if (selectedItems.size === 0) return;
-    Alert.alert(
-      "Confirm Deletion",
-      `Are you sure you want to delete ${selectedItems.size} selected boxes?`,
-      [
-        { text: "Cancel" },
-        {
-          text: "Delete",
-          style: 'destructive',
-          onPress: () => {
-            setBoxes(prev => prev.filter(b => !selectedItems.has(b.id)));
-            setSelectedItems(new Map());
-          },
-        },
-      ]
-    );
-  };
-
+  // --- TÍNH TOÁN ĐỂ HIỂN THỊ ---
   const totalAmount = useMemo(() => {
     let total = 0;
     selectedItems.forEach((quantity, id) => {
-      const box = boxes.find(b => b.id === id);
-      if (box) {
-        total += box.price * quantity;
+      const item = cartBoxes.find(b => b.mangaBoxId === id);
+      if (item) {
+        total += item.box.mysteryBoxPrice * quantity;
       }
     });
     return total;
-  }, [selectedItems, boxes]);
+  }, [selectedItems, cartBoxes]);
 
-  const renderItem = ({ item }: { item: MysteryBox }) => {
-    const isSelected = selectedItems.has(item.id);
-    const quantity = selectedItems.get(item.id) || 0;
+  // --- RENDER ---
+  const renderItem = ({ item }: { item: CartBoxItem }) => {
+    const isSelected = selectedItems.has(item.mangaBoxId);
+    const quantity = selectedItems.get(item.mangaBoxId) || 1;
+    // THÊM MỚI: Kiểm tra item có được yêu thích không
+    const isFavorited = favoriteIds.has(item.mangaBoxId);
 
     return (
       <View style={styles.itemContainer}>
-        <Checkbox
-          isChecked={isSelected}
-          onPress={() => handleToggleSelection(item.id)}
-        />
-        <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
+        {/* CẬP NHẬT: Thêm lại icon trái tim */}
+        <TouchableOpacity
+          style={styles.favoriteButton}
+          onPress={() => toggleFavorite(item.mangaBoxId)}
+        >
+          <Ionicons
+            name={isFavorited ? 'heart' : 'heart-outline'}
+            size={22}
+            color={isFavorited ? '#d9534f' : 'gray'}
+          />
+        </TouchableOpacity>
+
+        {/* CẬP NHẬT: Ẩn checkbox nếu item đã được yêu thích */}
+        {!isFavorited && (
+          <Checkbox
+            isChecked={isSelected}
+            onPress={() => handleToggleSelection(item)}
+          />
+        )}
+        <ApiImage urlPath={item.box.urlImage} style={styles.itemImage} />
         <View style={styles.itemInfo}>
-          <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
-          <Text style={styles.itemPrice}>{item.price.toLocaleString('vi-VN')} đ</Text>
+          <Text style={styles.itemName} numberOfLines={2}>{item.box.mysteryBoxName}</Text>
+          <Text style={styles.itemPrice}>{item.box.mysteryBoxPrice.toLocaleString('vi-VN')} đ</Text>
         </View>
-        {isSelected && (
+        {isSelected && !isFavorited && (
           <QuantitySelector
             quantity={quantity}
-            onDecrease={() => handleQuantityChange(item.id, quantity - 1)}
-            onIncrease={() => handleQuantityChange(item.id, quantity + 1)}
+            onDecrease={() => handleQuantityChange(item.mangaBoxId, quantity - 1)}
+            onIncrease={() => handleQuantityChange(item.mangaBoxId, quantity + 1)}
           />
         )}
       </View>
@@ -131,25 +266,35 @@ export default function FavoriteBoxes({ navigation }: ShoppingCartTopTabScreenPr
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
-        data={boxes}
+        data={cartBoxes}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.mangaBoxId}
         contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text>No favorite boxes yet.</Text>
-          </View>
-        }
+        ListEmptyComponent={<View style={styles.emptyContainer}><Text>Your cart is empty.</Text></View>}
       />
       <View style={styles.footer}>
         <View style={styles.footerTopRow}>
-          <View style={styles.selectAllContainer}>
+          {/* <View style={styles.selectAllContainer}>
             <Checkbox
-              isChecked={boxes.length > 0 && selectedItems.size === boxes.length}
+              isChecked={cartBoxes.length > 0 && selectedItems.size === cartBoxes.length}
               onPress={handleToggleSelectAll}
             />
             <Text style={styles.selectAllText}>All ({selectedItems.size})</Text>
-          </View>
+          </View> */}
+          {selectableCount > 0 ? (
+            <View style={styles.selectAllContainer}>
+              <Checkbox
+                isChecked={selectableCount > 0 && selectedItems.size === selectableCount}
+                onPress={handleToggleSelectAll}
+              />
+              <Text style={styles.selectAllText}>All ({selectableCount})</Text>
+            </View>
+          ) : (
+            // Nếu không có selectable items (tức tất cả đều favorite) thì ẩn select all và hiển thị một text nhẹ
+            <View style={styles.selectAllContainer}>
+              <Text style={[styles.selectAllText, { color: '#888' }]}></Text>
+            </View>
+          )}
           <TouchableOpacity onPress={handleDeleteSelected}>
             <Text style={styles.deleteButtonText}>Delete</Text>
           </TouchableOpacity>
@@ -159,8 +304,12 @@ export default function FavoriteBoxes({ navigation }: ShoppingCartTopTabScreenPr
             <Text style={styles.totalLabel}>Total:</Text>
             <Text style={styles.totalAmount}>{totalAmount.toLocaleString('vi-VN')} đ</Text>
           </View>
-          <TouchableOpacity style={styles.buyButton}>
-            <Text style={styles.buyButtonText}>Buy now</Text>
+          <TouchableOpacity
+            style={[styles.buyButton, isCheckingOut && styles.disabledButton]}
+            onPress={handleCheckout}
+            disabled={isCheckingOut}
+          >
+            {isCheckingOut ? <ActivityIndicator color="#fff" /> : <Text style={styles.buyButtonText}>Checkout</Text>}
           </TouchableOpacity>
         </View>
       </View>
@@ -178,7 +327,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 12,
+    padding: 16,
     marginHorizontal: 16,
     marginTop: 16,
     shadowColor: '#000',
@@ -259,5 +408,13 @@ const styles = StyleSheet.create({
   },
   buyButtonText: {
     color: '#fff', fontFamily: 'Oxanium-Bold', fontSize: 16,
+  },
+  disabledButton: { backgroundColor: '#ccc' },
+  favoriteButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    zIndex: 1,
+    padding: 4,
   },
 });

@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 // Navigators
 import MainTabs from './src/navigation/MainNavigator';
+import { navigationRef } from './src/navigation/RootNavigation';
 
 // Screens
 import Auth from './src/screens/Auth';
@@ -27,6 +28,8 @@ import AuctionDetail from './src/screens/AuctionDetail';
 import OrderHistory from './src/screens/OrderHistory';
 import ExchangeRequests from './src/screens/ExchangeRequests';
 import WithdrawRequest from './src/screens/WithdrawRequest';
+import HelpScreen from './src/screens/HelpScreen'
+// import { ChatProvider } from './src/context/ChatContext';
 
 // Types
 import { RootStackParamList, ShoppingCartStackParamList } from './src/types/types';
@@ -43,7 +46,7 @@ function ShoppingCartStack() {
   )
 }
 
-const HelpScreen = () => <View style={styles.container}><Text>Help & Feedback</Text></View>;
+// const HelpScreen = () => <View style={styles.container}><Text>Help & Feedback</Text></View>;
 
 // --- Navigator chính của App ---
 function AppNavigator() {
@@ -73,7 +76,7 @@ function AppNavigator() {
           <RootStack.Screen name="Profile" component={Profile} options={{ title: 'Profile' }} />
           <RootStack.Screen name="Settings" component={Settings} />
           <RootStack.Screen name="UpdateProfile" component={UpdateProfile} options={{ title: 'Update Profile' }} />
-          <RootStack.Screen name="Help & Feedback" component={HelpScreen} options={{ title: 'Help' }} />
+          <RootStack.Screen name="Help & Feedback" component={HelpScreen} options={{ title: 'Policies' }} />
         </>
       )}
     </RootStack.Navigator>
@@ -102,10 +105,12 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <NavigationContainer>
+      {/* <ChatProvider> */}
+      <NavigationContainer ref={navigationRef}>
         <StatusBar style="auto" />
         <AppNavigator />
       </NavigationContainer>
+      {/* </ChatProvider> */}
     </AuthProvider>
   );
 }

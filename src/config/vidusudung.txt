@@ -1,0 +1,33 @@
+import AuctionSocket from "./auctionSocket.js";
+
+const auctionId = "64f8b2a3d4e5f6abc123"; // ví dụ
+const token = "eyJhbGciOi..."; // lấy từ localStorage hoặc từ API login
+
+const socket = new AuctionSocket({
+  urlBase: "wss://your-api.example.com", // hoặc "https://your-api.example.com" (sẽ tự chuyển)
+  auctionId,
+  token,
+  reconnectBase: 1000,
+  reconnectMax: 20000,
+  heartbeatInterval: 0, // mặc định tắt heartbeat
+  debug: true
+});
+
+socket.onopen = () => console.log("WebSocket connected");
+socket.onmessage = (payload, ev) => {
+  console.log("Received payload:", payload);
+  // nếu server broadcast JSON string, payload sẽ là JS object (đã JSON.parse)
+};
+socket.onauthfail = (code, reason) => {
+  console.warn("Auth failed, please re-login", code, reason);
+  // hiển thị login modal / redirect
+};
+socket.onclose = (ev) => console.log("Closed", ev);
+socket.onerror = (err) => console.error("WebSocket error", err);
+
+// Gửi message (ví dụ đặt bid)
+socket.send({ type: "bid", amount: 1200, user: "minh" });
+
+// Nếu token bị refresh
+const newToken = "eyJ...refreshed...";
+socket.updateToken(newToken, { reconnectImmediate: true });

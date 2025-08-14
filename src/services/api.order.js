@@ -1,4 +1,3 @@
-import { toast } from "react-toastify";
 import { apiWithFallback } from '../config/axios';
 
 //this api is using to get the user order they have bought in the past
@@ -10,15 +9,15 @@ export const getOrderHistory = async () => {
       requiresAuth: true, // sẽ tự động gắn Bearer token
     });
 
-    if (response.data && response.data.status) {
-      return response.data.data;
-    } else {
-      toast.error("Failed to fetch order history");
-      return [];
-    }
+    // if (response.data && response.data.status) {
+    return response.data.data;
+    // } else {
+    //   toast.error("Failed to fetch order history");
+    //   return [];
+    // }
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching order history");
-    return null;
+    console.error("Error fetching order history:", error.response?.data);
+    throw error.response?.data || new Error("Error fetching order history");
   }
 };
 
@@ -31,15 +30,15 @@ export const getReportofUser = async () => {
       requiresAuth: true, // để tự động gắn Bearer token
     });
 
-    if (response.data?.status) {
-      return response.data.data;
-    } else {
-      toast.error("Failed to fetch user report");
-      return [];
-    }
+    // if (response.data?.status) {
+    return response.data.data;
+    // } else {
+    //   toast.error("Failed to fetch user report");
+    //   return [];
+    // }
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching user report");
-    return null;
+    console.error("Error fetching user reports:", error.response?.data);
+    throw error.response?.data || new Error("Error fetching user reports");
   }
 };
 
@@ -52,15 +51,15 @@ export const getTransaction = async () => {
       requiresAuth: true,
     });
 
-    if (response.data?.status) {
-      return response.data.data;
-    } else {
-      toast.error("Failed to fetch transaction history");
-      return [];
-    }
+    // if (response.data?.status) {
+    return response.data.data;
+    // } else {
+    //   toast.error("Failed to fetch transaction history");
+    //   return [];
+    // }
   } catch (error) {
-    toast.error(error.response?.data?.error || "Error fetching transaction history");
-    return null;
+    console.error("Error fetching transaction history:", error.response?.data);
+    throw error.response?.data || new Error("Error fetching transaction history");
   }
 };
 

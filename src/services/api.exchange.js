@@ -1,24 +1,33 @@
-import axios from "../config/axios";
 import { apiWithFallback } from '../config/axios';
 
 //this api is using for get the request you send to other collector for exchange product
 export const getBuyer = async () => {
-  const response = await apiWithFallback({
-    method: "get",
-    url: "/api/Exchange/exchange-request-buyer",
-    requiresAuth: true, // bắt buộc để interceptor tự gắn token
-  });
-  return response.data;
+  try {
+    const response = await apiWithFallback({
+      method: "get",
+      url: "/api/Exchange/exchange-request-buyer",
+      requiresAuth: true, // bắt buộc để interceptor tự gắn token
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error when fetch api exchange-request-buyer:", error);
+    throw error;
+  }
 };
 
 //this api is using for get the request that you recived by other collector for exchange
 export const getReceive = async () => {
-  const response = await apiWithFallback({
-    method: "get",
-    url: "/api/Exchange/with-products/by-receive",
-    requiresAuth: true, // interceptor sẽ tự gắn token
-  });
-  return response.data;
+  try {
+    const response = await apiWithFallback({
+      method: "get",
+      url: "/api/Exchange/with-products/by-receive",
+      requiresAuth: true, // interceptor sẽ tự gắn token
+    });
+    return response;
+  } catch (error) {
+    console.error("Error when fetch api by-receive:", error);
+    throw error;
+  }
 };
 
 // // Call POST API to create an exchange sender
@@ -37,7 +46,7 @@ export const getCollectionOfProfile = async () => {
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách collection:", error);
+    console.error("error when get all collection profile", error);
     throw error;
   }
 };
@@ -54,7 +63,7 @@ export const getAllProductsOfCollection = async (collectionId) => {
 
     return response.data;
   } catch (error) {
-    console.error(`Lỗi khi lấy sản phẩm cho collectionId ${collectionId}:`, error);
+    console.error(`Error when get all product of user collection by collectionId ${collectionId}:`, error);
     throw error;
   }
 };
@@ -70,7 +79,7 @@ export const exchangeProduct = async (payload) => {
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi gửi yêu cầu trao đổi:", error);
+    console.error("Error when create request exchange:", error);
     throw error;
   }
 };
@@ -85,7 +94,7 @@ export const ExchangeAccept = async (id) => {
     });
     return response.data;
   } catch (error) {
-    console.error(`Lỗi khi chấp nhận yêu cầu trao đổi với id ${id}:`, error);
+    console.error(`Error when accept request id ${id}:`, error);
     throw error;
   }
 };
@@ -100,7 +109,7 @@ export const ExchangeReject = async (id) => {
     });
     return response.data;
   } catch (error) {
-    console.error(`Lỗi khi từ chối yêu cầu trao đổi với id ${id}:`, error);
+    console.error(`Error when reject request id ${id}:`, error);
     throw error;
   }
 };
@@ -115,7 +124,7 @@ export const ExchangeCancel = async (id) => {
     });
     return response.data;
   } catch (error) {
-    console.error(`Lỗi khi hủy yêu cầu trao đổi với id ${id}:`, error);
+    console.error(`Error when cancel request id ${id}:`, error);
     throw error;
   }
 };

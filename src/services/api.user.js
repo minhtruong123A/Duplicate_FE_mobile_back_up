@@ -1,4 +1,4 @@
-import axios from '../config/axios';
+import axios from 'axios';
 import { apiWithFallback } from '../config/axios';
 
 const VIET_QR_API = "https://api.vietqr.io/v2/banks";
@@ -13,7 +13,7 @@ export const getProfile = async () => {
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách collection:", error);
+    console.error("Error fetching profile:", error);
     throw error;
   }
 };
@@ -28,7 +28,7 @@ export const getOtherProfile = async (id) => {
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách collection:", error);
+    console.error("Error fetching other profile:", error);
     throw error;
   }
 };
@@ -42,7 +42,7 @@ export const getAllProductOnSaleOfUser = async (userId) => {
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách collection:", error);
+    console.error("Error fetching user's products on sale:", error);
     throw error;
   }
 };
@@ -57,7 +57,7 @@ export const getAllCollectionOfProfile = async () => {
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách collection:", error);
+    console.error("Error fetching profile collections:", error);
     throw error;
   }
 };
@@ -73,7 +73,7 @@ export const getAllProductOfUserCollection = async (collectionId) => {
     });
     return response.data;
   } catch (error) {
-    console.error(`Lỗi khi lấy sản phẩm cho collectionId ${collectionId}:`, error);
+    console.error(`Error fetching products for collection ${collectionId}:`, error);
     throw error;
   }
 };
@@ -88,7 +88,7 @@ export const getAllBoxOfProfile = async () => {
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách hộp của profile:", error);
+    console.error("Error fetching owner boxes:", error);
     throw error;
   }
 };
@@ -102,7 +102,7 @@ export const openUserBox = async (userBoxId) => {
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi mở hộp:", error);
+    console.error("Error opening box:", error);
     throw error;
   }
 };
@@ -123,11 +123,10 @@ export const createSellProduct = async ({ userProductId, quantity, description, 
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi tạo sản phẩm bán:", error);
+    console.error("Error creating sell product:", error);
     throw error;
   }
 };
-
 
 // this api is using for report seller and product
 export const createReport = async ({ sellProductId, sellerId, title, content }) => {
@@ -145,13 +144,13 @@ export const createReport = async ({ sellProductId, sellerId, title, content }) 
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi tạo báo cáo:", error);
+    console.error("Error creating report:", error);
     throw error;
   }
 };
 
 //this api is using for change password of an user
-export const ChangePassword = async ({ userId, curentPassword, newPassword, confirmPassword }) => {
+export const changePassword = async ({ userId, curentPassword, newPassword, confirmPassword }) => {
   try {
     const response = await apiWithFallback({
       method: "put",
@@ -166,7 +165,7 @@ export const ChangePassword = async ({ userId, curentPassword, newPassword, conf
     });
     return response.data;
   } catch (error) {
-    console.error("Lỗi khi đổi mật khẩu:", error);
+    console.error("Error changing password:", error);
     throw error;
   }
 };
@@ -218,6 +217,11 @@ export const updateProfile = async (data, isFormData = false) => {
 
 //this api is using for get bank id
 export const getBankID = async () => {
-  const response = await axios.get(VIET_QR_API);
-  return response.data;
+  try {
+    const response = await axios.get(VIET_QR_API);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching bank list:", error);
+    throw error;
+  }
 };

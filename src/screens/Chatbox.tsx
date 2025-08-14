@@ -48,7 +48,7 @@ export default function Chatbox({ route }: RootStackScreenProps<'Chatbox'>) {
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
-                keyboardVerticalOffset={90}
+                keyboardVerticalOffset={50}
             >
 
                 <FlatList
@@ -102,6 +102,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderTopWidth: 1,
         borderTopColor: '#eee',
+        marginBottom: 30,
     },
     textInput: {
         flex: 1,
