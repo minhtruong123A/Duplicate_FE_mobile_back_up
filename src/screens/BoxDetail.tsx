@@ -18,6 +18,7 @@ import { buildImageUrl } from '../services/api.imageproxy';
 import { addToCart } from '../services/api.cart'; // THÊM MỚI
 import CartIconOutline from '../../assets/icons/cart_outline.svg'; // THÊM MỚI
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../context/AuthContext'; // THÊM MỚI
 
 
 // THÊM MỚI: Component QuantitySelector
@@ -36,6 +37,7 @@ const QuantitySelector = ({ quantity, onDecrease, onIncrease }: { quantity: numb
 export default function BoxDetail({ route }: ShopStackScreenProps<'Box Detail'>) {
   const navigation = useNavigation<RootStackNavigationProp>();
   const { boxId } = route.params;
+  const { isAuctionJoined } = useAuth();
 
   // THÊM MỚI: State để lưu chi tiết box, loading và error
   const [box, setBox] = useState<MysteryBoxDetailItem | null>(null);
@@ -162,7 +164,7 @@ export default function BoxDetail({ route }: ShopStackScreenProps<'Box Detail'>)
 
           {/* Sử dụng mysteryBoxPrice */}
           <Text style={styles.priceText}>
-            {box.mysteryBoxPrice.toLocaleString('vi-VN')} đ
+            {box.mysteryBoxPrice.toLocaleString('vi-VN')} VND
           </Text>
 
           {/* THÊM MỚI: Bộ chọn số lượng */}
@@ -212,9 +214,9 @@ export default function BoxDetail({ route }: ShopStackScreenProps<'Box Detail'>)
           </TouchableOpacity>
         </View>
         <TouchableOpacity
-          style={[styles.buyButton, (isBuyingNow || isAddingToCart) && styles.disabledButton]}
+          style={[styles.buyButton, (isBuyingNow || isAddingToCart || isAuctionJoined) && styles.disabledButton]}
           onPress={handleBuyNow}
-          disabled={isBuyingNow || isAddingToCart}
+          disabled={isBuyingNow || isAddingToCart || isAuctionJoined}
         >
           {isBuyingNow ?
             <ActivityIndicator color="#fff" /> :

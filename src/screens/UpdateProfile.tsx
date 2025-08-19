@@ -67,10 +67,8 @@ export default function UpdateProfile() {
   });
   const [bankList, setBankList] = useState<Bank[]>([]);
   const [selectedImage, setSelectedImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
-
   const [useBackup, setUseBackup] = useState(false);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
-
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBankModalVisible, setBankModalVisible] = useState(false);
@@ -125,18 +123,12 @@ export default function UpdateProfile() {
     }
   };
 
-  // Hàm submit
-  const handleSubmit = async () => {
-    // Validation cơ bản
-    if (form.bankid && (!form.accountBankName || !form.bankNumber)) {
-      return Alert.alert("Error", "If a bank is selected, account name and number are required.");
-    }
-
+  // CẬP NHẬT: Tách logic cập nhật ra một hàm riêng
+  const proceedWithUpdate = async () => {
     setIsSubmitting(true);
     try {
       const formData = new FormData();
 
-      // Thêm ảnh nếu người dùng đã chọn ảnh mới
       if (selectedImage) {
         const uriParts = selectedImage.uri.split('.');
         const fileType = uriParts[uriParts.length - 1];
@@ -147,7 +139,6 @@ export default function UpdateProfile() {
         } as any);
       }
 
-      // Thêm các trường dữ liệu khác
       formData.append('phoneNumber', form.phoneNumber);
       formData.append('accountBankName', form.accountBankName);
       formData.append('bankNumber', form.bankNumber);
@@ -163,6 +154,36 @@ export default function UpdateProfile() {
       Alert.alert("Error", "Failed to update profile.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // CẬP NHẬT: Hàm submit giờ sẽ kiểm tra và hiển thị thông báo
+  const handleSubmit = () => {
+    if (form.bankid && (!form.accountBankName || !form.bankNumber)) {
+      return Alert.alert("Error", "If a bank is selected, account name and number are required.");
+    }
+
+    // Kiểm tra xem thông tin ngân hàng có thay đổi không
+    const bankDetailsChanged =
+      (profile?.accountBankName || '') !== form.accountBankName ||
+      (profile?.banknumber || '') !== form.bankNumber ||
+      (profile?.bankId || '') !== form.bankid;
+
+    if (bankDetailsChanged) {
+      // Nếu có, hiển thị Alert xác nhận
+      Alert.alert(
+        "Important Notice",
+        "The bank account information you provide will be used by the Admin to transfer money to you in the future.\n\n" +
+        "Ensure your bank details are correct. Admin not liable for errors.\n" +
+        "Are you sure you want to update?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Confirm", onPress: proceedWithUpdate } // Chỉ cập nhật khi xác nhận
+        ]
+      );
+    } else {
+      // Nếu không, cập nhật trực tiếp
+      proceedWithUpdate();
     }
   };
 

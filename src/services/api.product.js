@@ -89,3 +89,18 @@ export const updateSellProduct = async ({ id, description, price, updatedAt }) =
     throw error.response?.data || new Error("Error updating sell product");
   }
 };
+
+
+//suggestion get all product on sale base on not owned in user collection api
+export const getAllSuggestionProductsOnSale = async () => {
+  try {
+    const response = await apiWithFallback({
+      method: "get",
+      url: "/api/SellProduct/get-all-sellproduct-suggestions",
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching suggestion products on sale:", error.response?.data);
+    throw error.response?.data || new Error("Error fetching suggestion products on sale");
+  }
+}

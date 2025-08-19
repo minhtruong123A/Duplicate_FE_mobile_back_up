@@ -6,6 +6,7 @@ import ApiImage from './ApiImage'; // Import component ảnh mới
 interface ProductItemProps {
     item: ProductOnSaleItem;
     onPress: () => void;
+    isNew?: boolean;
 }
 
 // Hàm hỗ trợ để viết hoa chữ cái đầu
@@ -25,9 +26,14 @@ const getRarityColor = (rarity: string) => {
     }
 };
 
-const ProductItem: React.FC<ProductItemProps> = ({ item, onPress }) => {
+const ProductItem: React.FC<ProductItemProps> = ({ item, onPress, isNew }) => {
     return (
         <TouchableOpacity style={styles.itemContainer} onPress={onPress}>
+            {isNew && (
+                <View style={styles.newBadge}>
+                    <Text style={styles.newBadgeText}>N</Text>
+                </View>
+            )}
             <ApiImage urlPath={item.urlImage} style={styles.itemImage} resizeMode="contain" />
             <View style={styles.itemInfo}>
                 <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
@@ -37,7 +43,7 @@ const ProductItem: React.FC<ProductItemProps> = ({ item, onPress }) => {
                         {capitalizeFirstLetter(item.rarityName)}
                     </Text>
                 </View>
-                <Text style={styles.itemPrice}>{item.price.toLocaleString('vi-VN')} đ</Text>
+                <Text style={styles.itemPrice}>{item.price.toLocaleString('vi-VN')} VND</Text>
             </View>
         </TouchableOpacity>
     );
@@ -92,6 +98,28 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontFamily: 'Oxanium-Bold',
         color: '#d9534f',
+    },
+    // THÊM MỚI: Style cho huy hiệu "NEW"
+    newBadge: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        backgroundColor: '#d9534f', // Màu đỏ
+        borderRadius: 12,
+        width: 24,
+        height: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+        shadowColor: '#000',
+        shadowOpacity: 0.3,
+        shadowRadius: 2,
+        elevation: 4,
+    },
+    newBadgeText: {
+        color: '#fff',
+        fontFamily: 'Oxanium-Bold',
+        fontSize: 14,
     },
 });
 

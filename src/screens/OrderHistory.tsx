@@ -34,7 +34,7 @@ const OrderList = ({ data }: { data: OrderHistoryItem[] }) => {
                     <Text style={styles.itemPrice}>
                         {/* Hiển thị dấu + hoặc - tùy theo loại giao dịch */}
                         {item.type === 'ProductSell' ? '+ ' : '- '}
-                        {item.totalAmount.toLocaleString('vi-VN')} đ
+                        {item.totalAmount.toLocaleString('vi-VN')} VND
                     </Text>
                 </View>
                 <Text style={[styles.status, { color: statusColor }]}>{status}</Text>

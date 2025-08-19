@@ -34,7 +34,7 @@ const BoxItem = ({ item, onPress }: BoxItemProps) => {
                 <Text style={styles.itemName}>{item.mysteryBoxName}</Text>
                 <Text style={styles.itemCollection}>Collection: {item.collectionTopic}</Text>
                 <Text style={styles.itemPrice}>
-                    {item.mysteryBoxPrice.toLocaleString('vi-VN')} đ
+                    {item.mysteryBoxPrice.toLocaleString('vi-VN')} VND
                 </Text>
             </View>
         </TouchableOpacity>

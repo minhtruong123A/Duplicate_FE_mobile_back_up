@@ -4,130 +4,106 @@ import {
 } from 'react-native';
 import { ShopTopTabScreenProps } from '../types/types';
 import FilterBar from '../components/FilterBar';
-import { getAllProductsOnSale } from '../services/api.product'; // Import API sản phẩm
+import { getAllProductsOnSale, getAllSuggestionProductsOnSale } from '../services/api.product'; // Import API sản phẩm
 import { ProductOnSaleItem } from '../types/types';
 import ProductItem from '../components/ProductItem'; // Ta sẽ tạo component này
 import { useFocusEffect } from '@react-navigation/native'; // Thêm useFocusEffect
 
 const priceFilters = ['Price (Low to High)', 'Price (High to Low)'];
 const rarityFilters = ['All', 'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
-
+const mainFilters = ['All', 'Suggestions'];
 
 export default function CollectionStore({ navigation }: ShopTopTabScreenProps<'Collection Store'>) {
-  const [products, setProducts] = useState<ProductOnSaleItem[]>([]);
+  // CẬP NHẬT: State để lưu 2 nguồn dữ liệu riêng biệt
+  const [allProducts, setAllProducts] = useState<ProductOnSaleItem[]>([]);
+  const [suggestionProducts, setSuggestionProducts] = useState<ProductOnSaleItem[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // CẬP NHẬT: State cho các bộ lọc
+  const [activeMainFilter, setActiveMainFilter] = useState<'All' | 'Suggestions'>('All');
   const [activeTopic, setActiveTopic] = useState('All');
   const [activePriceSort, setActivePriceSort] = useState<string | null>(null);
-  const [activeRarity, setActiveRarity] = useState('All'); // <-- THÊM MỚI
+  const [activeRarity, setActiveRarity] = useState('All');
 
-  // useEffect(() => {
-  //   const fetchProducts = async () => {
-  //     try {
-  //       setLoading(true);
-  //       const response = await getAllProductsOnSale();
-  //       if (response.status && Array.isArray(response.data)) {
-  //         // LỌC THEO YÊU CẦU: quantity > 0 VÀ isSell = true
-  //         const availableProducts = response.data.filter(
-  //           (p: ProductOnSaleItem) => p.quantity > 0 && p.isSell
-  //         );
-  //         setProducts(availableProducts);
-  //       } else {
-  //         throw new Error('Invalid data format received from API');
-  //       }
-  //       setError(null);
-  //     } catch (err: any) {
-  //       setError(err.message || 'Failed to fetch products.');
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
-  //   fetchProducts();
-  // }, []);
-
-  const fetchProducts = useCallback(async () => {
+  const fetchAllData = useCallback(async () => {
+    // Chỉ hiện loading toàn màn hình lần đầu
+    if (allProducts.length === 0) setLoading(true);
     try {
-      // Không set loading lại mỗi lần focus để tránh giật UI
-      const response = await getAllProductsOnSale();
-      if (response.status && Array.isArray(response.data)) {
-        // LỌC THEO YÊU CẦU: quantity > 0 VÀ isSell = true
-        const availableProducts = response.data.filter(
-          (p: ProductOnSaleItem) => p.quantity > 0 && p.isSell
-        );
-        setProducts(availableProducts);
-      } else {
-        throw new Error('Invalid data format received from API');
+      // Gọi cả 2 API cùng lúc để tối ưu
+      const [allRes, suggestionRes] = await Promise.all([
+        getAllProductsOnSale(),
+        getAllSuggestionProductsOnSale()
+      ]);
+
+      if (allRes.status && Array.isArray(allRes.data)) {
+        setAllProducts(allRes.data.filter((p: any) => p.quantity > 0 && p.isSell));
+      }
+      if (suggestionRes.status && Array.isArray(suggestionRes.data)) {
+        setSuggestionProducts(suggestionRes.data.filter((p: any) => p.quantity > 0 && p.isSell));
       }
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch products.');
     } finally {
-      // Chỉ tắt loading lần đầu
-      if (loading) setLoading(false);
+      setLoading(false);
     }
-  }, [loading]);
+  }, []);
 
+  // Code đã sửa
   useFocusEffect(
     useCallback(() => {
-      fetchProducts();
-    }, [fetchProducts])
+      fetchAllData(); // Gọi hàm async bên trong một hàm sync
+    }, [fetchAllData])
   );
 
+  // CẬP NHẬT: Chọn nguồn dữ liệu dựa trên filter chính
+  const sourceData = useMemo(() => {
+    return activeMainFilter === 'All' ? allProducts : suggestionProducts;
+  }, [activeMainFilter, allProducts, suggestionProducts]);
+
   const topics = useMemo(() => {
-    const uniqueTopics = new Set(products.map(item => item.topic));
+    const uniqueTopics = new Set(sourceData.map(item => item.topic));
     return ['All', ...Array.from(uniqueTopics)];
-  }, [products]);
+  }, [sourceData]);
 
   const handleFilterSelect = (filter: string) => {
-    // Nếu chọn filter topic
-    if (topics.includes(filter)) {
-      setActiveTopic(filter);
-      setActiveRarity('All'); // Reset rarity filter
-      // Nếu chọn filter rarity
-    } else if (rarityFilters.includes(filter)) {
-      setActiveRarity(filter);
-      setActiveTopic('All'); // Reset topic filter
-      // Nếu chọn sắp xếp giá
-    } else if (priceFilters.includes(filter)) {
-      setActivePriceSort(filter);
-      // Nếu chọn Reset (hoặc một filter không xác định)
-    } else {
+    if (mainFilters.includes(filter)) {
+      setActiveMainFilter(filter as 'All' | 'Suggestions');
+      // Reset các filter phụ khi đổi nguồn dữ liệu
       setActiveTopic('All');
       setActiveRarity('All');
-      setActivePriceSort(null);
+    } else if (topics.includes(filter)) {
+      setActiveTopic(filter);
+    } else if (rarityFilters.includes(filter)) {
+      setActiveRarity(filter);
+    } else if (priceFilters.includes(filter)) {
+      setActivePriceSort(filter);
     }
   };
 
-  // CẬP NHẬT: `useMemo` để thêm logic lọc theo rarity
   const filteredAndSortedData = useMemo(() => {
-    let data = [...products];
-
-    // 1. Lọc theo topic
+    let data = [...sourceData];
     if (activeTopic !== 'All') {
       data = data.filter(item => item.topic === activeTopic);
     }
-
-    // 2. Lọc theo rarity
     if (activeRarity !== 'All') {
-      // So sánh không phân biệt chữ hoa/thường
       data = data.filter(item => item.rarityName.toLowerCase() === activeRarity.toLowerCase());
     }
-
-    // 3. Sắp xếp theo giá
     if (activePriceSort === 'Price (Low to High)') {
       data.sort((a, b) => a.price - b.price);
     } else if (activePriceSort === 'Price (High to Low)') {
       data.sort((a, b) => b.price - a.price);
     }
-
     return data;
-  }, [products, activeTopic, activeRarity, activePriceSort]); // Thêm activeRarity vào dependencies
+  }, [sourceData, activeTopic, activeRarity, activePriceSort]);
 
   const renderProductItem = ({ item }: { item: ProductOnSaleItem }) => (
     <ProductItem
       item={item}
-      // Route 'Collection Detail' đang trỏ đến màn hình ProductDetail.tsx
+      // Truyền prop isNew nếu đang ở tab "Suggestions"
+      isNew={activeMainFilter === 'Suggestions'}
       onPress={() => navigation.navigate('Collection Detail', { productId: item.id })}
     />
   );
@@ -143,16 +119,15 @@ export default function CollectionStore({ navigation }: ShopTopTabScreenProps<'C
   return (
     <SafeAreaView style={styles.container}>
       <FilterBar
-        filters={[...topics, ...rarityFilters.slice(1), ...priceFilters]} // Bỏ 'All' của rarity để tránh trùng lặp
+        filters={[...mainFilters, ...topics.slice(1), ...rarityFilters.slice(1), ...priceFilters]}
         onSelectFilter={handleFilterSelect}
-        // Hiển thị filter đang được chọn
-        activeFilter={activeTopic !== 'All' ? activeTopic : activeRarity !== 'All' ? activeRarity : activePriceSort}
+        activeFilter={activeMainFilter !== 'All' ? activeMainFilter : activeTopic !== 'All' ? activeTopic : activeRarity !== 'All' ? activeRarity : activePriceSort}
       />
       <FlatList
         data={filteredAndSortedData}
         renderItem={renderProductItem}
         keyExtractor={(item) => item.id}
-        numColumns={2} // Hiển thị dạng lưới 2 cột
+        numColumns={2}
         contentContainerStyle={styles.listContent}
         columnWrapperStyle={styles.columnWrapper}
       />

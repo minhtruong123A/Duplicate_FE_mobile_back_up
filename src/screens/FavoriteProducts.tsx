@@ -12,13 +12,14 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons'; // THÊM MỚI
 import AsyncStorage from '@react-native-async-storage/async-storage'; // THÊM MỚI
+import { useAuth } from '../context/AuthContext'; // THÊM MỚI
 
 // --- Types, APIs, Components ---
 import { RootStackNavigationProp, CartProductItem } from '../types/types';
 import { updateCartQuantity, removeFromCart, clearAllCart } from '../services/api.cart';
 import { buyProductOnSale } from '../services/api.product';
 import ApiImage from '../components/ApiImage';
-
+import CartIcon from '../../assets/icons/cart_outline.svg';
 
 // --- Components (Không đổi) ---
 const Checkbox = ({ isChecked, onPress }: { isChecked: boolean, onPress: () => void }) => (
@@ -42,6 +43,7 @@ const QuantitySelector = ({ quantity, onDecrease, onIncrease, maxQuantity }: { q
 // --- Màn hình chính ---
 export default function FavoriteProducts({ products, refreshCart }: { products: CartProductItem[], refreshCart: () => void }) {
     const navigation = useNavigation<RootStackNavigationProp>();
+    const { isAuctionJoined } = useAuth();
 
     // State nội bộ của component
     const [cartProducts, setCartProducts] = useState(products);
@@ -312,7 +314,7 @@ export default function FavoriteProducts({ products, refreshCart }: { products: 
                     <TouchableOpacity onPress={() => navigation.navigate('SellerProfile', { sellerId: item.product.userId })}>
                         <Text style={styles.sellerName}>by {item.product.username}</Text>
                     </TouchableOpacity>
-                    <Text style={styles.itemPrice}>{item.product.price.toLocaleString('vi-VN')} đ</Text>
+                    <Text style={styles.itemPrice}>{item.product.price.toLocaleString('vi-VN')} VND</Text>
                 </View>
                 {isSelected && !isFavorited && (
                     <QuantitySelector
@@ -333,8 +335,11 @@ export default function FavoriteProducts({ products, refreshCart }: { products: 
                 renderItem={renderItem}
                 keyExtractor={(item) => item.sellProductId}
                 contentContainerStyle={styles.listContent}
-                ListEmptyComponent={<View style={styles.emptyContainer}><Text>Your cart is empty.</Text></View>}
-            />
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <CartIcon width={150} height={150} color="#cccccc" />
+                        <Text>Your cart is empty.</Text>
+                    </View>} />
             <View style={styles.footer}>
                 <View style={styles.footerTopRow}>
                     {selectableCount > 0 ? (
@@ -358,12 +363,12 @@ export default function FavoriteProducts({ products, refreshCart }: { products: 
                 <View style={styles.footerBottomRow}>
                     <View style={styles.totalContainer}>
                         <Text style={styles.totalLabel}>Total:</Text>
-                        <Text style={styles.totalAmount}>{totalAmount.toLocaleString('vi-VN')} đ</Text>
+                        <Text style={styles.totalAmount}>{totalAmount.toLocaleString('vi-VN')} VND</Text>
                     </View>
                     <TouchableOpacity
-                        style={[styles.buyButton, isCheckingOut && styles.disabledButton]}
+                        style={[styles.buyButton, (isCheckingOut || isAuctionJoined) && styles.disabledButton]}
                         onPress={handleCheckout}
-                        disabled={isCheckingOut}
+                        disabled={isCheckingOut || isAuctionJoined}
                     >
                         {isCheckingOut ? <ActivityIndicator color="#fff" /> : <Text style={styles.buyButtonText}>Checkout</Text>}
                     </TouchableOpacity>
@@ -376,7 +381,12 @@ export default function FavoriteProducts({ products, refreshCart }: { products: 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f0f2f5' },
     listContent: { paddingBottom: 140 },
-    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100 },
+    emptyText: {
+        marginTop: 16,
+        fontSize: 16,
+        color: '#888',
+    },
     itemContainer: {
         flexDirection: 'row',
         alignItems: 'center',

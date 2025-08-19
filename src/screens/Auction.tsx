@@ -36,20 +36,20 @@ export default function Auction() {
   );
 }
 
-const styles = StyleSheet.create({
-  fab: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    right: 20,
-    bottom: 20,
-    backgroundColor: '#d9534f',
-    borderRadius: 28,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-});
+// const styles = StyleSheet.create({
+//   fab: {
+//     position: 'absolute',
+//     width: 56,
+//     height: 56,
+//     alignItems: 'center',
+//     justifyContent: 'center',
+//     right: 20,
+//     bottom: 20,
+//     backgroundColor: '#d9534f',
+//     borderRadius: 28,
+//     elevation: 8,
+//     shadowColor: '#000',
+//     shadowOpacity: 0.3,
+//     shadowRadius: 4,
+//   },
+// });

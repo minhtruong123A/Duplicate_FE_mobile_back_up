@@ -45,8 +45,8 @@ export type ShopStackParamList = {
 
 // CẬP NHẬT: Thêm các màn hình Auction
 export type AuctionTopTabParamList = {
-    'Đang diễn ra': undefined;
-    'Của tôi': undefined;
+    Auctions: undefined;
+    'My Auction': undefined;
 };
 
 // CẬP NHẬT: Thêm WithdrawRequest vào PaymentStackParamList
@@ -64,7 +64,8 @@ export type ShoppingCartStackParamList = {
 // Bottom Tab Navigator
 export type RootTabParamList = {
     Shop: NavigatorScreenParams<ShopStackParamList>;
-    Auction: NavigatorScreenParams<AuctionTopTabParamList>; // <-- Thay đổi ở đây
+    Auction: NavigatorScreenParams<AuctionStackParamList> | undefined;
+    AddAuctionTab: undefined; // <-- THÊM DÒNG NÀY
     Payment: NavigatorScreenParams<PaymentStackParamList>;
     Chat: undefined;
 };
@@ -80,11 +81,16 @@ export type RootStackParamList = {
     'Help & Feedback': undefined;
     TopUpPackages: undefined;
     SellerProfile: { sellerId: string }; // <-- Thêm màn hình mới
-    Chatbox: { userName: string; avatarUrl: string };
+    Chatbox: { userName: string; avatarUrl: string; otherUserId: string; };
     WithdrawRequest: undefined; // <-- Thêm màn hình mới
-    AuctionDetail: { auctionId: string }; // <-- Thêm màn hình mới
+    AuctionDetail: {
+        auctionId: string;
+        startTime: string;
+        endTime: string;
+    };
     OrderHistory: undefined; // <-- Thêm màn hình mới
     ExchangeRequests: undefined; // <-- Thêm màn hình mới
+    AddAuction: undefined; // <-- Thêm dòng này vào
 };
 
 // --- TYPE PROPS ---
@@ -377,3 +383,41 @@ export type BidHistoryItem = {
     price: number;
     created_at: string; // ISO date string
 };
+
+// Auction item
+export type AuctionItem = {
+    _id: string; // API trả về _id, nhưng ta sẽ map nó sang id cho nhất quán
+    id: string;
+    title: string;
+    start_price: number;
+    urlImage?: string; // Giả sử API có ảnh
+    start_time: Date
+    seller_id: string;
+    productImageUrl?: string; // Nếu API có trường này
+    end_time: string;
+};
+
+export type AuctionStackParamList = {
+    AuctionTabs: NavigatorScreenParams<AuctionTopTabParamList>; // Màn hình chính giờ là một navigator chứa các tab
+    // Sửa lại dòng này để bao gồm tất cả các tham số cần thiết
+    AuctionDetail: {
+        auctionId: string;
+        startTime: string;
+        endTime: string;
+    };
+};
+
+// --- THÊM MỚI: TYPES CHO CHAT & MESSAGES ---
+
+// Dữ liệu cho một tin nhắn (từ API getMessages và WebSocket)
+export type ChatMessage = {
+    _id: string; // ID của tin nhắn
+    content: string;
+    sender_id: string;
+    conversation_id: string;
+    created_at: string; // ISO date string
+};
+
+// THÊM TYPE HELPER NÀY VÀO (nếu chưa có)
+export type AuctionStackScreenProps<T extends keyof AuctionStackParamList> =
+    NativeStackScreenProps<AuctionStackParamList, T>;

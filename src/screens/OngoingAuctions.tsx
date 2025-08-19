@@ -62,6 +62,7 @@ export default function OngoingAuctions() {
         setError(null);
         try {
             const auctionRes = await fetchAuctionList(filter);
+            console.log("Dữ liệu gốc từ API:", auctionRes.data); // Log này rất quan trọng
             if (auctionRes.success && Array.isArray(auctionRes.data)) {
                 // Gọi thêm profile người bán cho từng auction
                 const flatAuctions: AuctionItem[] = auctionRes.data.flat();
@@ -102,61 +103,68 @@ export default function OngoingAuctions() {
     // }, [fetchData]);
 
     const renderItem = ({ item }: { item: AuctionWithSeller }) => {
+        // SỬA LỖI: Hàm helper để đảm bảo thời gian được xử lý là UTC
+        const ensureUtc = (timeStr: string) => {
+            if (!timeStr) return new Date(0); // Trả về ngày không hợp lệ nếu thiếu
+            // Thêm 'Z' nếu chuỗi thời gian chưa có thông tin timezone
+            return new Date(timeStr.endsWith('Z') ? timeStr : timeStr + 'Z');
+        };
+
         const now = new Date();
-        const startTime = new Date(item.start_time);
-        const endTime = new Date(item.end_time);
+        const startTime = ensureUtc(item.start_time);
+        const endTime = ensureUtc(item.end_time);
 
         let timeDisplay = '';
+        const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+
         if (now < startTime) {
-            const timeLeft = startTime.getTime() - now.getTime();
-            timeDisplay = `Starts in: ${formatTimeLeft(timeLeft)}`;
+            const timeLeftMs = startTime.getTime() - now.getTime();
+            if (timeLeftMs < twentyFourHoursInMs) {
+                const hours = Math.floor(timeLeftMs / (1000 * 60 * 60));
+                const minutes = Math.floor((timeLeftMs % (1000 * 60 * 60)) / (1000 * 60));
+                timeDisplay = `Starts in: ${hours}h ${minutes}m`;
+            } else {
+                timeDisplay = `Starts on: ${startTime.toLocaleDateString('vi-VN')}`;
+            }
         } else if (now >= startTime && now <= endTime) {
-            const timeLeft = endTime.getTime() - now.getTime();
-            timeDisplay = `Ongoing - Ends in: ${formatTimeLeft(timeLeft)}`;
+            const timeLeftMs = endTime.getTime() - now.getTime();
+            const days = Math.floor(timeLeftMs / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((timeLeftMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((timeLeftMs % (1000 * 60 * 60)) / (1000 * 60));
+
+            if (days > 0) {
+                timeDisplay = `Ends in: ${days}d ${hours}h`;
+            } else {
+                timeDisplay = `Ends in: ${hours}h ${minutes}m`;
+            }
         } else {
-            timeDisplay = `Ended on: ${endTime.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-            })}`;
+            timeDisplay = `Ended on: ${endTime.toLocaleDateString('vi-VN')}`;
         }
 
         return (
             <TouchableOpacity
                 style={styles.itemContainer}
-                onPress={() => navigation.navigate('AuctionDetail', { auctionId: item._id })}
+                onPress={() => navigation.navigate('AuctionDetail', {
+                    auctionId: item._id,
+                    startTime: item.start_time,
+                    endTime: item.end_time,
+                })}
             >
                 <ApiImage
-                    urlPath={item.productImageUrl || item.seller?.profileImage || 'https://via.placeholder.com/100?text=No+Image'}
+                    urlPath={item.productImageUrl || item.seller?.profileImage}
                     style={styles.itemImage}
                 />
                 <View style={styles.itemInfo}>
-                    <Text style={styles.itemName} numberOfLines={2}>
-                        {item.title}
-                    </Text>
-
-                    <Text style={styles.itemDescription} numberOfLines={2}>
-                        {item.descripition}
-                    </Text>
-
+                    <Text style={styles.itemName} numberOfLines={2}>{item.title}</Text>
+                    <Text style={styles.itemDescription} numberOfLines={2}>{item.descripition}</Text>
                     {item.seller && (
                         <Text style={styles.sellerName}>by {item.seller.username}</Text>
                     )}
-
                     <Text style={styles.timeLeft}>{timeDisplay}</Text>
-
-                    <Text style={styles.statusText}>
-                        {item.status === 1
-                            ? 'Approved'
-                            : item.status === 0
-                                ? 'Pending'
-                                : 'Denied'}
-                    </Text>
                 </View>
             </TouchableOpacity>
         );
     };
-
     const filters = ['started', 'waiting'] as const;
     type FilterKey = typeof filters[number];
 

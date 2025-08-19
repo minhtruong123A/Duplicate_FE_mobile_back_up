@@ -11,12 +11,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // THÊM MỚI
 import AsyncStorage from '@react-native-async-storage/async-storage'; // THÊM MỚI
+import { useAuth } from '../context/AuthContext'; // THÊM MỚI
 
 // --- Types, APIs, Components ---
 import { CartBoxItem } from '../types/types';
 import { removeFromCart, clearAllCart } from '../services/api.cart'; // API riêng cho box
 import { buyMysteryBox } from '../services/api.mysterybox'
 import ApiImage from '../components/ApiImage';
+import CartIcon from '../../assets/icons/cart_outline.svg';
 
 // --- Components (Không đổi) ---
 const Checkbox = ({ isChecked, onPress }: { isChecked: boolean, onPress: () => void }) => (
@@ -41,6 +43,7 @@ const QuantitySelector = ({ quantity, onDecrease, onIncrease }: { quantity: numb
 export default function FavoriteBoxes({ boxes, refreshCart }: { boxes: CartBoxItem[], refreshCart: () => void }) {
   // --- State Management ---
   const [cartBoxes, setCartBoxes] = useState(boxes);
+  const { isAuctionJoined } = useAuth();
   const [selectedItems, setSelectedItems] = useState<Map<string, number>>(new Map());
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   // THÊM MỚI: State và logic cho "Yêu thích"
@@ -250,7 +253,7 @@ export default function FavoriteBoxes({ boxes, refreshCart }: { boxes: CartBoxIt
         <ApiImage urlPath={item.box.urlImage} style={styles.itemImage} />
         <View style={styles.itemInfo}>
           <Text style={styles.itemName} numberOfLines={2}>{item.box.mysteryBoxName}</Text>
-          <Text style={styles.itemPrice}>{item.box.mysteryBoxPrice.toLocaleString('vi-VN')} đ</Text>
+          <Text style={styles.itemPrice}>{item.box.mysteryBoxPrice.toLocaleString('vi-VN')} VND</Text>
         </View>
         {isSelected && !isFavorited && (
           <QuantitySelector
@@ -270,7 +273,11 @@ export default function FavoriteBoxes({ boxes, refreshCart }: { boxes: CartBoxIt
         renderItem={renderItem}
         keyExtractor={(item) => item.mangaBoxId}
         contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<View style={styles.emptyContainer}><Text>Your cart is empty.</Text></View>}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <CartIcon width={150} height={150} color="#cccccc" />
+            <Text>Your cart is empty.</Text>
+          </View>}
       />
       <View style={styles.footer}>
         <View style={styles.footerTopRow}>
@@ -302,12 +309,12 @@ export default function FavoriteBoxes({ boxes, refreshCart }: { boxes: CartBoxIt
         <View style={styles.footerBottomRow}>
           <View style={styles.totalContainer}>
             <Text style={styles.totalLabel}>Total:</Text>
-            <Text style={styles.totalAmount}>{totalAmount.toLocaleString('vi-VN')} đ</Text>
+            <Text style={styles.totalAmount}>{totalAmount.toLocaleString('vi-VN')} VND</Text>
           </View>
           <TouchableOpacity
-            style={[styles.buyButton, isCheckingOut && styles.disabledButton]}
+            style={[styles.buyButton, (isCheckingOut || isAuctionJoined) && styles.disabledButton]}
             onPress={handleCheckout}
-            disabled={isCheckingOut}
+            disabled={isCheckingOut || isAuctionJoined}
           >
             {isCheckingOut ? <ActivityIndicator color="#fff" /> : <Text style={styles.buyButtonText}>Checkout</Text>}
           </TouchableOpacity>
@@ -321,7 +328,12 @@ export default function FavoriteBoxes({ boxes, refreshCart }: { boxes: CartBoxIt
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f2f5' },
   listContent: { paddingBottom: 140 },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100 },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#888',
+  },
   itemContainer: {
     flexDirection: 'row',
     alignItems: 'center',

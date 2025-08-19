@@ -17,7 +17,7 @@ const primaryAxios = axios.create({
 
 const backupAxios = axios.create({
   baseURL: BACKUP_CS_API,
-  timeout: 10000,
+  // timeout: 10000,
 });
 
 const pythonAxios = axios.create({
@@ -27,7 +27,7 @@ const pythonAxios = axios.create({
 
 const backupPythonAxios = axios.create({
   baseURL: BACKUP_PY_API,
-  timeout: 10000,
+  // timeout: 10000,
 });
 
 export const IMAGE_BASE_URL = `${CS_API}/api/ImageProxy`;
@@ -119,6 +119,7 @@ const apiWithFallback = async (config) => {
   } catch (err) {
     console.warn("[Fallback] C# API failed. Retrying with backup...");
     return await backupAxios(config);
+    //backupAxios, primaryAxios
   }
 };
 
@@ -131,11 +132,10 @@ const pythonApiWithFallback = async (config) => {
     return await backupPythonAxios(config);
   }
 };
-
-export const PYTHON_API_BASE_URL = 'https://api.mmb.io.vn/py'
-
+export const PYTHON_API_BASE_URL = 'https://api.mmb.io.vn/py';
+export const BACKUP_PYTHON_API_BASE_URL = 'https://sep490-manga-mystery-box-pybe.onrender.com';
 // export const api = PYTHON_API_BASE_URL;
-// Export các instance để dùng trực tiếp nếu cần
+// Export các instance để dùng trực tiếp nếu cần BACKUP_PYTHON_API_BASE_URL PYTHON_API_BASE_URL
 export default primaryAxios; // Dùng mặc định là C#
 export {
   pythonAxios,

@@ -147,7 +147,12 @@ export default function SellerProfile({ route }: RootStackScreenProps<'SellerPro
                     <View style={styles.buttonRow}>
                         <TouchableOpacity
                             style={styles.actionButton}
-                            onPress={() => navigation.navigate('Chatbox', { userName: seller.username, avatarUrl: seller.profileImage || '' })}
+                            // onPress={() => navigation.navigate('Chatbox', { userName: seller.username, avatarUrl: seller.profileImage || '' })}
+                            onPress={() => navigation.navigate('Chatbox', {
+                                userName: seller.username,
+                                avatarUrl: seller.profileImage || '',
+                                otherUserId: seller.id // <-- Thêm dòng này vào
+                            })}
                         >
                             <Text style={styles.actionButtonText}>Chat</Text>
                         </TouchableOpacity>

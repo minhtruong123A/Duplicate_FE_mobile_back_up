@@ -1,8 +1,9 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useRef, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, View } from 'react-native';
 import { UserProfile } from '../types/types';
-import { getProfile } from '../services/api.user';
+import { getProfile } from '../services/api.user'; // Giả định API lấy profile của chính mình
+import { checkIsJoinedAuction } from '../services/api.auction';
 
 // Định nghĩa kiểu dữ liệu cho context
 type AuthContextType = {
@@ -12,6 +13,8 @@ type AuthContextType = {
     logout: () => Promise<void>;
     isLoading: boolean;
     isAuthenticated: boolean;
+    isAuctionJoined: boolean;
+    setIsAuctionJoinedManually: (status: boolean) => void; // Thêm hàm này
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,8 +23,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [userToken, setUserToken] = useState<string | null>(null);
     const [user, setUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isAuctionJoined, setIsAuctionJoined] = useState(false);
+    console.log(`[AuthContext] Trạng thái đấu giá toàn cục hiện tại: ${isAuctionJoined}`);
+    const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // CẬP NHẬT: Di chuyển hàm login và logout ra ngoài để khắc phục lỗi scope
+    const stopGlobalPolling = useCallback(() => {
+        if (pollingTimerRef.current) {
+            clearInterval(pollingTimerRef.current);
+            pollingTimerRef.current = null;
+        }
+        setIsAuctionJoined(false);
+    }, []);
+
+    const startGlobalPolling = useCallback(() => {
+        if (pollingTimerRef.current) return;
+        setIsAuctionJoined(true);
+        const intervalId = setInterval(async () => {
+            try {
+                console.log("✅ [Polling] Đang kiểm tra trạng thái tham gia đấu giá...");
+
+                const auctionStatusRes = await checkIsJoinedAuction();
+                console.log(" stopping.");
+                if (auctionStatusRes.success && auctionStatusRes.data?.[0] === false) {
+                    console.log("✅ [Polling] Người dùng không còn trong phiên đấu giá. Đã dừng kiểm tra.");
+                    stopGlobalPolling();
+                    if (user) await AsyncStorage.removeItem(`pendingAuction_${user.id}`);
+                }
+            } catch (e) {
+                console.error("Global polling failed, stopping.", e);
+                stopGlobalPolling();
+            }
+        }, 60000);
+        pollingTimerRef.current = intervalId;
+    }, [user, stopGlobalPolling]);
+
+    const setIsAuctionJoinedManually = useCallback((status: boolean) => {
+        setIsAuctionJoined(status);
+    }, []);
+
+    const logout = useCallback(async () => {
+        stopGlobalPolling();
+        if (user) await AsyncStorage.removeItem(`pendingAuction_${user.id}`);
+        await AsyncStorage.multiRemove(['userToken', 'refreshToken']);
+        setUserToken(null);
+        setUser(null);
+    }, [user, stopGlobalPolling]);
+
     const login = async (accessToken: string, refreshToken: string) => {
         try {
             setIsLoading(true);
@@ -30,60 +77,66 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUserToken(accessToken);
 
             const response = await getProfile();
-            if (response.status && response.data) {
-                setUser(response.data);
+            if (response?.status && response.data) { // Thêm kiểm tra response tồn tại
+                const currentUser = response.data;
+                setUser(currentUser);
+                const auctionStatusRes = await checkIsJoinedAuction();
+                if (auctionStatusRes.success && auctionStatusRes.data?.[0] === true) {
+                    startGlobalPolling();
+                }
             } else {
                 throw new Error("Could not fetch user profile after login.");
             }
         } catch (error) {
-            // Nếu có lỗi, đảm bảo đăng xuất sạch sẽ
-            await logout(); // Gọi hàm logout đã được định nghĩa ở dưới
+            await logout();
         } finally {
             setIsLoading(false);
         }
     };
 
-    const logout = async () => {
-        await AsyncStorage.removeItem('userToken');
-        await AsyncStorage.removeItem('refreshToken');
-        setUserToken(null);
-        setUser(null);
-    };
-
+    // --- KHỞI ĐỘNG APP ---
     useEffect(() => {
         const bootstrapAsync = async () => {
-            let token: string | null = null;
             try {
-                token = await AsyncStorage.getItem('userToken');
+                const token = await AsyncStorage.getItem('userToken');
                 if (token) {
                     setUserToken(token);
-                    const response = await getProfile();
-                    if (response.status && response.data) {
-                        setUser(response.data);
+                    const response = await getProfile(); // Hàm này giờ đã an toàn hơn
+                    console.log("profile go brr brr" + response)
+                    if (response?.status && response.data) { // Thêm kiểm tra response tồn tại
+                        const currentUser = response.data;
+                        setUser(currentUser);
+                        const pendingAuctionKey = `pendingAuction_${currentUser.id}`;
+                        const storedAuctionId = await AsyncStorage.getItem(pendingAuctionKey);
+                        if (storedAuctionId) {
+                            startGlobalPolling();
+                        }
                     } else {
-                        // Token còn nhưng không hợp lệ -> đăng xuất
+                        // Nếu getProfile trả về null (do lỗi), đăng xuất
                         await logout();
                     }
                 }
             } catch (e) {
-                console.error("Failed to bootstrap app state", e);
+                console.error("Bootstrap error", e);
                 await logout();
             }
             setIsLoading(false);
         };
-
         bootstrapAsync();
+        // SỬA LỖI: Dùng mảng rỗng để đảm bảo useEffect chỉ chạy MỘT LẦN
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Dùng useMemo để đảm bảo object value không bị tạo lại mỗi lần render
     const authContextValue = useMemo(() => ({
         userToken,
         user,
         isLoading,
         isAuthenticated: !!user && !!userToken,
-        login, // Tham chiếu đến hàm login đã định nghĩa ở trên
-        logout, // Tham chiếu đến hàm logout đã định nghĩa ở trên
-    }), [userToken, user, isLoading]);
+        login,
+        logout,
+        isAuctionJoined,
+        setIsAuctionJoinedManually, // Thêm hàm này vào value
+    }), [userToken, user, isLoading, isAuctionJoined, login, logout, setIsAuctionJoinedManually]);
 
     if (isLoading) {
         return (
@@ -102,7 +155,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (!context) {
+    if (context === undefined) {
         throw new Error('useAuth must be used within an AuthProvider');
     }
     return context;

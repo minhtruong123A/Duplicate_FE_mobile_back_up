@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, ActivityIndicator } from 'react-native';
 import { createMaterialTopTabNavigator, MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
 import { Svg, Path, Rect } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 // CẬP NHẬT: Import API và types thật
 import { RootStackNavigationProp, TransactionItem, WhoAmIResponseData } from '../types/types';
@@ -11,6 +11,19 @@ import { fetchUserInfo } from '../services/api.auth'; // Giả sử API ở đâ
 
 // --- Component Tab Bar Tùy Chỉnh (Cập nhật để nhận props) ---
 const CustomTabBar = ({ state, descriptors, navigation, totalReceived, totalSpent }: MaterialTopTabBarProps & { totalReceived: number, totalSpent: number }) => {
+    const formatCurrency = (value: any) => {
+        if (value >= 1e12) {
+            return (value / 1e12).toFixed(2) + ' T'; // Trillion
+        } else if (value >= 1e9) {
+            return (value / 1e9).toFixed(2) + ' B'; // Billion
+        } else if (value >= 1e6) {
+            return (value / 1e6).toFixed(2) + ' M'; // Million
+        } else {
+            return value.toLocaleString('vi-VN');
+        }
+
+    };
+
     return (
         <View style={styles.tabBarContainer}>
             <View style={styles.tabButtonsContainer}>
@@ -40,10 +53,10 @@ const CustomTabBar = ({ state, descriptors, navigation, totalReceived, totalSpen
 
             <View style={styles.totalsContainer}>
                 <Text style={styles.totalText}>
-                    Received: <Text style={styles.totalAmountReceived}>{totalReceived.toLocaleString('vi-VN')} đ</Text>
+                    Received: <Text style={styles.totalAmountReceived}>{formatCurrency(totalReceived)} VND</Text>
                 </Text>
                 <Text style={styles.totalText}>
-                    Spent: <Text style={styles.totalAmountSpent}>{totalSpent.toLocaleString('vi-VN')} đ</Text>
+                    Spent: <Text style={styles.totalAmountSpent}>{formatCurrency(totalSpent)} VND</Text>
                 </Text>
             </View>
         </View>
@@ -74,7 +87,7 @@ const TransactionHistoryScreen = ({ transactions }: { transactions: TransactionI
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                     <Text style={[styles.transactionAmount, { color: item.type === 'Recharge' ? '#dc3545' : '#28a745' }]}>
-                        {item.type === 'Recharge' ? '-' : '+'} {item.amount.toLocaleString('vi-VN')} đ
+                        {item.type === 'Recharge' ? '-' : '+'} {item.amount.toLocaleString('vi-VN')} VND
                     </Text>
                     <Text style={[styles.transactionStatus, { color: statusStyle.color }]}>{statusStyle.text}</Text>
                 </View>
@@ -140,33 +153,41 @@ export default function Payment() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        const loadData = async () => {
-            try {
-                setLoading(true);
-                const [userInfoResponse, transactionData] = await Promise.all([
-                    fetchUserInfo(),
-                    getTransaction(),
-                ]);
+    // CẬP NHẬT: Dùng useCallback và useFocusEffect để tải lại dữ liệu
+    const loadData = useCallback(async () => {
+        // Chỉ hiện loading toàn màn hình lần đầu
+        if (transactions.length === 0) {
+            setLoading(true);
+        }
+        try {
+            const [userInfoResponse, transactionData] = await Promise.all([
+                fetchUserInfo(),
+                getTransaction(),
+            ]);
 
-                if (userInfoResponse.status && userInfoResponse.data) {
-                    setBalance(userInfoResponse.data.wallet_amount);
-                }
-
-                if (Array.isArray(transactionData)) {
-                    setTransactions([...transactionData].reverse());
-                }
-
-                setError(null);
-            } catch (err: any) {
-                setError("Failed to load payment data.");
-                console.error(err);
-            } finally {
-                setLoading(false);
+            if (userInfoResponse.status && userInfoResponse.data) {
+                setBalance(userInfoResponse.data.wallet_amount);
             }
-        };
-        loadData();
-    }, []);
+
+            if (Array.isArray(transactionData)) {
+                // Sắp xếp lại để giao dịch mới nhất luôn ở trên cùng
+                setTransactions([...transactionData].reverse());
+            }
+
+            setError(null);
+        } catch (err: any) {
+            setError("Failed to load payment data.");
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, [transactions.length]); // Thêm dependency để logic loading lần đầu hoạt động đúng
+
+    useFocusEffect(
+        useCallback(() => {
+            loadData();
+        }, [loadData])
+    );
 
     const { totalReceived, totalSpent, receivedList, spentList } = useMemo(() => {
         const successfulTransactions = transactions.filter(t => t.status === 'Success');

@@ -111,7 +111,7 @@ export default function ProductDetail({ route }: ShopStackScreenProps<'Collectio
   const { productId } = route.params;
 
   // THÊM MỚI: Lấy thông tin người dùng hiện tại
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isAuctionJoined } = useAuth();
 
   // THÊM MỚI: State cho dữ liệu API
   const [product, setProduct] = useState<ProductOnSaleDetailItem | null>(null);
@@ -340,7 +340,7 @@ export default function ProductDetail({ route }: ShopStackScreenProps<'Collectio
             <StarRating rating={avgRating} reviewCount={reviewCount} />
 
             <View style={styles.rarityContainer}><Text style={[styles.rarityText, { color: getRarityColor(product.rateName) }]}>{capitalizeFirstLetter(product.rateName)}</Text></View>
-            <Text style={styles.priceText}>{product.price.toLocaleString('vi-VN')} đ</Text>
+            <Text style={styles.priceText}>{product.price.toLocaleString('vi-VN')} VND</Text>
 
             <TouchableOpacity style={styles.sellerContainer} onPress={() => navigation.navigate('SellerProfile', { sellerId: product.userId })}>
               <ApiImage urlPath={product.userProfileImage} style={styles.sellerAvatar} />
@@ -396,7 +396,12 @@ export default function ProductDetail({ route }: ShopStackScreenProps<'Collectio
             <View style={styles.leftActions}>
               <TouchableOpacity
                 style={styles.iconButton}
-                onPress={() => navigation.navigate('Chatbox', { userName: product.username, avatarUrl: product.userProfileImage || '' })}
+                // onPress={() => navigation.navigate('Chatbox', { userName: product.username, avatarUrl: product.userProfileImage || '' })}
+                onPress={() => navigation.navigate('Chatbox', {
+                  userName: product.username,
+                  avatarUrl: product.userProfileImage || '',
+                  otherUserId: product.userId // <-- Thêm dòng này vào
+                })}
                 disabled={isAddingToCart || isBuyingNow}
               >
                 <ChatIcon width={24} height={24} />
@@ -421,9 +426,9 @@ export default function ProductDetail({ route }: ShopStackScreenProps<'Collectio
 
           {!isMyProduct ? (
             <TouchableOpacity
-              style={[styles.buyButton, (isBuyingNow || isAddingToCart) && styles.disabledButton]}
+              style={[styles.buyButton, (isBuyingNow || isAddingToCart || isAuctionJoined) && styles.disabledButton]}
               onPress={handleBuyNow}
-              disabled={isBuyingNow || isAddingToCart}
+              disabled={isBuyingNow || isAddingToCart || isAuctionJoined}
             >
               {isBuyingNow ? (
                 <ActivityIndicator color="#fff" />

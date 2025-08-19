@@ -29,6 +29,7 @@ import OrderHistory from './src/screens/OrderHistory';
 import ExchangeRequests from './src/screens/ExchangeRequests';
 import WithdrawRequest from './src/screens/WithdrawRequest';
 import HelpScreen from './src/screens/HelpScreen'
+import AddAuction from './src/screens/AddAuction'; // <-- Import màn hình mới
 // import { ChatProvider } from './src/context/ChatContext';
 
 // Types
@@ -77,6 +78,7 @@ function AppNavigator() {
           <RootStack.Screen name="Settings" component={Settings} />
           <RootStack.Screen name="UpdateProfile" component={UpdateProfile} options={{ title: 'Update Profile' }} />
           <RootStack.Screen name="Help & Feedback" component={HelpScreen} options={{ title: 'Policies' }} />
+          <RootStack.Screen name="AddAuction" component={AddAuction} options={{ presentation: 'modal', title: 'Create Auction' }} />
         </>
       )}
     </RootStack.Navigator>
